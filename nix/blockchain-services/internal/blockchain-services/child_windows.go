@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"lace.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/ourpaths"
 	"github.com/UserExistsError/conpty"
 	"github.com/acarl005/stripansi"
 )

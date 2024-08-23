@@ -10,8 +10,8 @@ import (
 	"strings"
 	"regexp"
 
-	"lace.io/blockchain-services/ourpaths"
-	"lace.io/blockchain-services/constants"
+	"iog.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/constants"
 
 	"github.com/acarl005/stripansi"
 )

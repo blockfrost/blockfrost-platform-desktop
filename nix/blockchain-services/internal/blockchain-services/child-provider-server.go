@@ -7,8 +7,8 @@ import (
 	"time"
 	"net/url"
 
-	"lace.io/blockchain-services/constants"
-	"lace.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/constants"
+	"iog.io/blockchain-services/ourpaths"
 )
 
 func childProviderServer(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {

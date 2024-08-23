@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"regexp"
 
-	"lace.io/blockchain-services/constants"
-	"lace.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/constants"
+	"iog.io/blockchain-services/ourpaths"
 )
 
 func childOgmios(syncProgressCh chan<- float64) func(SharedState, chan<- StatusAndUrl) ManagedChild { return func(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {

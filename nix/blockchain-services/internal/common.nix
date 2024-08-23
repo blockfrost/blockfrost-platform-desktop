@@ -10,7 +10,7 @@ in rec {
 
   prettyName = "Blockchain Services";
 
-  laceVersion = "0.1.0";
+  ourVersion = "0.1.0";
 
   # These are configs of ‘cardano-node’ for all networks we make available from the UI.
   # The patching of the official networks needs to happen to:
@@ -99,7 +99,7 @@ in rec {
     package constants
 
     const (
-      BlockchainServicesVersion = ${__toJSON laceVersion}
+      BlockchainServicesVersion = ${__toJSON ourVersion}
       BlockchainServicesRevision = ${__toJSON (inputs.self.rev or "dirty")}
       CardanoNodeVersion = ${__toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
       CardanoNodeRevision = ${__toJSON inputs.cardano-node.rev}

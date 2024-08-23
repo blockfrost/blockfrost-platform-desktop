@@ -18,11 +18,11 @@ import (
 
 	"github.com/sqweek/dialog"
 
-	"lace.io/blockchain-services/appconfig"
-	"lace.io/blockchain-services/constants"
-	"lace.io/blockchain-services/ourpaths"
-	"lace.io/blockchain-services/mainthread"
-	"lace.io/blockchain-services/ui"
+	"iog.io/blockchain-services/appconfig"
+	"iog.io/blockchain-services/constants"
+	"iog.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/mainthread"
+	"iog.io/blockchain-services/ui"
 )
 
 func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- StatusAndUrl) ManagedChild { return func(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {

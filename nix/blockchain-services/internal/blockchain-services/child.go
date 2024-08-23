@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	t "lace.io/blockchain-services/types"
-	"lace.io/blockchain-services/ourpaths"
-	"lace.io/blockchain-services/appconfig"
+	t "iog.io/blockchain-services/types"
+	"iog.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/appconfig"
 
 	"github.com/creack/pty"
 	"github.com/acarl005/stripansi"

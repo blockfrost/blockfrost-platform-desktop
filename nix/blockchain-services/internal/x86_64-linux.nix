@@ -236,7 +236,7 @@ in rec {
     passAsFile = [ "script" ];
   } ''
     mkdir -p $out
-    target=$out/blockchain-services-${common.laceVersion}-${revShort}-${targetSystem}.bin
+    target=$out/blockchain-services-${common.ourVersion}-${revShort}-${targetSystem}.bin
     cat $scriptPath >$target
     echo 'Compressing (xz)...'
     tar -cJ -C ${blockchain-services-bundle} . >>$target

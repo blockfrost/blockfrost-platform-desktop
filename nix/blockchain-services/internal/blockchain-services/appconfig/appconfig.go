@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"encoding/json"
 
-	"lace.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/ourpaths"
 )
 
 const (

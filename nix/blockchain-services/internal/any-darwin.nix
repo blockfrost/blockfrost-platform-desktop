@@ -411,7 +411,7 @@ in rec {
       else "dirty";
   in pkgs.runCommand "blockchain-services-dmg" {} ''
     mkdir -p $out
-    target=$out/blockchain-services-${common.laceVersion}-${revShort}-${targetSystem}.dmg
+    target=$out/blockchain-services-${common.ourVersion}-${revShort}-${targetSystem}.dmg
 
     /usr/bin/hdiutil makehybrid -iso -joliet -o tmp.iso \
       ${blockchain-services-bundle}/Applications
@@ -661,7 +661,7 @@ in rec {
     '';
   in pkgs.runCommand "blockchain-services-dmg" {} ''
     mkdir -p $out
-    target=$out/blockchain-services-${common.laceVersion}-${revShort}-${targetSystem}.dmg
+    target=$out/blockchain-services-${common.ourVersion}-${revShort}-${targetSystem}.dmg
 
     ${dmgbuild}/bin/dmgbuild \
       -D app_path=${blockchain-services-bundle}/Applications/${lib.escapeShellArg common.prettyName}.app \

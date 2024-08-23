@@ -225,7 +225,7 @@ in rec {
       else "dirty";
   in pkgs.runCommand "blockchain-services.7z" {} ''
     mkdir -p $out
-    target=$out/blockchain-services-${common.laceVersion}-${revShort}-${targetSystem}.7z
+    target=$out/blockchain-services-${common.ourVersion}-${revShort}-${targetSystem}.7z
 
     ln -s ${mkPackage { inherit withJS; }} blockchain-services
     ${with pkgs; lib.getExe p7zip} a -r -l $target blockchain-services
@@ -306,7 +306,7 @@ in rec {
     make-windows-installer \
       --spaced-name ${lib.escapeShellArg common.prettyName} \
       --install-dir ${lib.escapeShellArg common.prettyName} \
-      --full-version ${lib.escapeShellArg common.laceVersion} \
+      --full-version ${lib.escapeShellArg common.ourVersion} \
       --out-name "installer.exe" \
       --icon-path icon.ico \
       --banner-bmp banner.bmp \
@@ -349,7 +349,7 @@ in rec {
     makensis installer.nsi -V4
 
     mkdir -p $out
-    target=$out/blockchain-services-${common.laceVersion}-${revShort}-${targetSystem}.exe
+    target=$out/blockchain-services-${common.ourVersion}-${revShort}-${targetSystem}.exe
 
     mv installer.exe "$target"
 

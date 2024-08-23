@@ -11,8 +11,8 @@ import (
 	"strings"
 	"path/filepath"
 
-	"lace.io/blockchain-services/ourpaths"
-	"lace.io/blockchain-services/appconfig"
+	"iog.io/blockchain-services/ourpaths"
+	"iog.io/blockchain-services/appconfig"
 )
 
 const (

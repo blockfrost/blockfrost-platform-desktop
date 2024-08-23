@@ -11,11 +11,11 @@ import (
 	"bytes"
 	"strconv"
 
-	t "lace.io/blockchain-services/types"
-	"lace.io/blockchain-services/ourpaths" // has to be imported before clipboard.init()
-	"lace.io/blockchain-services/assets"
-	"lace.io/blockchain-services/appconfig"
-	"lace.io/blockchain-services/mainthread"
+	t "iog.io/blockchain-services/types"
+	"iog.io/blockchain-services/ourpaths" // has to be imported before clipboard.init()
+	"iog.io/blockchain-services/assets"
+	"iog.io/blockchain-services/appconfig"
+	"iog.io/blockchain-services/mainthread"
 
 	"github.com/getlantern/systray"
 	"github.com/atotto/clipboard"

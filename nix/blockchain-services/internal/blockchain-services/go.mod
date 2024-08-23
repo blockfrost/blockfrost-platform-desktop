@@ -1,4 +1,4 @@
-module lace.io/blockchain-services
+module iog.io/blockchain-services
 
 go 1.20
 
