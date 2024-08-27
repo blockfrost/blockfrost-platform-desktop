@@ -2,14 +2,12 @@
 
 let
 
-  prefix = "blockchain-services";
-
   mkPackages = targetSystem: let
-    internal = inputs.self.internal.${prefix}.${targetSystem}; # don’t eval again
+    internal = inputs.self.internal.${targetSystem}; # don’t eval again
     suffix = if buildSystem != targetSystem then "-${targetSystem}" else "";
   in {
-    "${prefix}${suffix}" = internal.package;
-    "${prefix}-installer${suffix}" = internal.installer;
+    "default${suffix}" = internal.package;
+    "installer${suffix}" = internal.installer;
   };
 
 in {

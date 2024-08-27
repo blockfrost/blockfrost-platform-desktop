@@ -154,7 +154,7 @@ in rec {
 
   blockchain-services-exe = pkgs.buildGoModule rec {
     name = "blockchain-services";
-    src = ./blockchain-services;
+    src = common.coreSrc;
     vendorHash = common.blockchain-services-exe-vendorHash;
     nativeBuildInputs = with pkgs; [ imagemagick go-bindata ];
     buildInputs =

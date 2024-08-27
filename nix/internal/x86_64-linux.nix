@@ -27,7 +27,7 @@ in rec {
 
   blockchain-services-exe = pkgs.buildGoModule rec {
     name = "blockchain-services";
-    src = ./blockchain-services;
+    src = common.coreSrc;
     vendorHash = common.blockchain-services-exe-vendorHash;
     nativeBuildInputs = with pkgs; [ pkgconfig imagemagick go-bindata ];
     buildInputs = with pkgs; [
@@ -204,7 +204,7 @@ in rec {
     chmod -R +w $out/share
     cp $(find ${desktopItem} -type f -name '*.desktop') $out/share/blockchain-services.desktop
     ${pkgs.imagemagick}/bin/convert -background none -size 1024x1024 \
-      ${./blockchain-services}/cardano.svg $out/share/icon_large.png
+      ${builtins.path { path = common.coreSrc + "/cardano.svg"; }} $out/share/icon_large.png
   '';
 
   desktopItem = pkgs.makeDesktopItem {
@@ -251,7 +251,7 @@ in rec {
     port = 12345;
   in pkgs.writeShellScriptBin "swagger-ui-preview" ''
     set -euo pipefail
-    openapi=$(realpath -e nix/blockchain-services/internal/blockchain-services/openapi.json)
+    openapi=$(realpath -e core/openapi.json)
     cd $(mktemp -d)
     ln -s ${common.swagger-ui} ./swagger-ui
     ln -s "$openapi" ./openapi.json

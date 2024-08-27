@@ -25,10 +25,10 @@ in rec {
   blockchain-services-exe = let
     noConsoleWindow = true;
     go = patchedGo;
-    go-modules = inputs.self.internal.blockchain-services.x86_64-linux.blockchain-services-exe.go-modules;
+    go-modules = inputs.self.internal.x86_64-linux.blockchain-services-exe.go-modules;
   in pkgs.pkgsCross.mingwW64.stdenv.mkDerivation {
     name = "blockchain-services";
-    src = ./blockchain-services;
+    src = common.coreSrc;
     GOPROXY = "off";
     GOSUMDB = "off";
     GO111MODULE = "on";
@@ -90,7 +90,7 @@ in rec {
       export GOPATH="$TMPDIR/go"
       rm -rf vendor
       mkdir -p vendor
-      cp ${./blockchain-services/main_fd_inheritance_windows.go} main_fd_inheritance_windows.go
+      cp ${builtins.path { path = common.coreSrc + "/main_fd_inheritance_windows.go"; }} main_fd_inheritance_windows.go
     '';
     buildPhase = ''
       go build
@@ -114,7 +114,7 @@ in rec {
     convert ${lib.concatMapStringsSep " " (dim: "${d2s dim}.png") sizes} $out
   '';
 
-  icon = svg2ico ./blockchain-services/cardano.svg;
+  icon = svg2ico (builtins.path { path = common.coreSrc + "/cardano.svg"; });
 
   # FIXME: This is terrible, we have to do it better, but I can’t get the Go cross-compiler
   # to embed Windows resources properly in the EXE. The file increases in size, but is still

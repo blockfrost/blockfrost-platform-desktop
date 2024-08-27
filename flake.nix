@@ -30,19 +30,17 @@
     inherit (inputs.nixpkgs) lib;
   in {
     packages = lib.genAttrs supportedSystem (buildSystem:
-      import ./nix/blockchain-services/packages.nix { inherit inputs buildSystem; }
+      import ./nix/packages.nix { inherit inputs buildSystem; }
     );
 
-    internal = {
-      blockchain-services = import ./nix/blockchain-services/internal.nix { inherit inputs; };
-    };
+    internal = import ./nix/internal.nix { inherit inputs; };
 
     hydraJobs = {
-      blockchain-services-installer = {
-        x86_64-linux   = inputs.self.packages.x86_64-linux.blockchain-services-installer;
-        x86_64-darwin  = inputs.self.packages.x86_64-darwin.blockchain-services-installer;
-        aarch64-darwin  = inputs.self.packages.aarch64-darwin.blockchain-services-installer;
-        x86_64-windows = inputs.self.packages.x86_64-linux.blockchain-services-installer-x86_64-windows;
+      installer = {
+        x86_64-linux   = inputs.self.packages.x86_64-linux.installer;
+        x86_64-darwin  = inputs.self.packages.x86_64-darwin.installer;
+        aarch64-darwin  = inputs.self.packages.aarch64-darwin.installer;
+        x86_64-windows = inputs.self.packages.x86_64-linux.installer-x86_64-windows;
       };
 
       required = inputs.nixpkgs.legacyPackages.x86_64-linux.releaseTools.aggregate {

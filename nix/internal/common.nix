@@ -126,6 +126,11 @@ in rec {
     )
   '';
 
+  # Minimize rebuilds:
+  coreSrc = builtins.path {
+    path = inputs.self + "/core";
+  };
+
   swagger-ui = let
     name = "swagger-ui";
     version = "5.2.0";
@@ -153,24 +158,26 @@ in rec {
     doCheck = false;  # some segfault in OAS 2.0 tests…
   };
 
-  openApiJson = pkgs.runCommand "openapi.json" {
+  openApiJson = let
+    src = builtins.path { path = coreSrc + "/openapi.json"; };
+  in pkgs.runCommand "openapi.json" {
     buildInputs = [ pkgs.jq vacuum ];
   } ''
-    vacuum lint --details ${./blockchain-services/openapi.json}
+    vacuum lint --details ${src}
 
     jq --sort-keys\
       --arg title ${lib.escapeShellArg "${prettyName} API"} \
       '.info.title = $title' \
-      ${./blockchain-services/openapi.json} >$out
+      ${src} >$out
   '';
 
   dashboard = pkgs.runCommand "dashboard" {
     buildInputs = with pkgs; [ imagemagick ];
   } ''
-    cp -r ${./dashboard} $out
+    cp -r ${inputs.self + "/ui/dashboard"} $out
     chmod -R +w $out
-    convert -background none -size 32x32 ${./dashboard/favicon.svg} $out/favicon-32x32.png
-    convert -background none -size 16x16 ${./dashboard/favicon.svg} $out/favicon-16x16.png
+    convert -background none -size 32x32 ${inputs.self + "/ui/favicon.svg"} $out/favicon-32x32.png
+    convert -background none -size 16x16 ${inputs.self + "/ui/favicon.svg"} $out/favicon-16x16.png
     convert $out/favicon-*.png $out/favicon.ico
 
     mkdir -p $out/highlight.js
