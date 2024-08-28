@@ -205,7 +205,7 @@ in rec {
 
     cp -Lr ${common.networkConfigs} $out/cardano-node-config
     cp -Lr ${common.swagger-ui} $out/swagger-ui
-    cp -Lr ${common.dashboard} $out/dashboard
+    cp -Lr ${ui.dist} $out/ui
     ${if !withJS then "" else ''
       cp -Lr ${cardano-js-sdk.ourPackage} $out/cardano-js-sdk
     ''}
@@ -757,4 +757,12 @@ in rec {
     mv $HOME/.wine/drive_c/postgres $out
     cp ${cardano-js-sdk.msvc-installed}/VC/Tools/MSVC/*/bin/Hostx64/x64/{vcruntime140,vcruntime140_1,msvcp140}.dll $out/bin/
   '';
+
+  ui = rec {
+    # They’re initially the same as Linux when cross-compiling for Windows:
+    node_modules = inputs.self.internal.x86_64-linux.ui.node_modules;
+
+    # So far we don’t have anything special on Windows, let's just use the Linux build:
+    dist = inputs.self.internal.x86_64-linux.ui.dist;
+  };
 }

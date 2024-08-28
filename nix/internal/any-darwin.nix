@@ -258,7 +258,7 @@ in rec {
     ln -s ${cardano-js-sdk.ourPackage} "$app"/Resources/cardano-js-sdk
     ln -s ${common.networkConfigs} "$app"/Resources/cardano-node-config
     ln -s ${common.swagger-ui} "$app"/Resources/swagger-ui
-    ln -s ${common.dashboard} "$app"/Resources/dashboard
+    ln -s ${ui.dist} "$app"/Resources/ui
 
     ln -s ${icons} "$app"/Resources/iconset.icns
   '';
@@ -675,4 +675,69 @@ in rec {
   '';
 
   mithril-client = lib.recursiveUpdate { meta.mainProgram = "mithril-client"; } common.mithril-bin;
+
+  ui = rec {
+    node_modules = pkgs.stdenv.mkDerivation {
+      name = "ui-node_modules";
+      src = common.ui.lockfiles;
+      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkgconfig jq ]);
+      configurePhase = common.ui.setupCacheAndGypDirs;
+      buildPhase = ''
+        # Do not look up in the registry, but in the offline cache:
+        ${common.ui.yarn2nix.fixup_yarn_lock}/bin/fixup_yarn_lock yarn.lock
+
+        # Now, install from offlineCache to node_modules/, but do not
+        # execute any scripts defined in the project package.json and
+        # its dependencies we need to `patchShebangs` first, since even
+        # ‘/usr/bin/env’ is not available in the build sandbox
+        yarn install --ignore-scripts
+
+        # Remove all prebuilt *.node files extracted from `.tgz`s
+        find . -type f -name '*.node' -not -path '*/@swc*/*' -exec rm -vf {} ';'
+
+        patchShebangs . >/dev/null  # a real lot of paths to patch, no need to litter logs
+
+        # And now, with correct shebangs, run the install scripts (we have to do that
+        # semi-manually, because another `yarn install` will overwrite those shebangs…):
+        find node_modules -type f -name 'package.json' | sort | ( xargs grep -F '"install":' || true ; ) | cut -d: -f1 | while IFS= read -r dependency ; do
+          # The grep pre-filter is not ideal:
+          if [ "$(jq .scripts.install "$dependency")" != "null" ] ; then
+            echo ' '
+            echo "Running the install script for ‘$dependency’:"
+            ( cd "$(dirname "$dependency")" ; yarn run install ; )
+          fi
+        done
+
+        patchShebangs . >/dev/null  # a few new files will have appeared
+      '';
+      installPhase = ''
+        mkdir $out
+        cp -r node_modules $out/
+      '';
+      dontFixup = true; # TODO: just to shave some seconds, turn back on after everything works
+    };
+
+    dist = pkgs.stdenv.mkDerivation {
+      name = "ui-dist";
+      src = common.uiSrc;
+      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkgconfig jq ]);
+      CI = "nix";
+      NODE_ENV = "production";
+      BUILDTYPE = "Release";
+      configurePhase = common.ui.setupCacheAndGypDirs + ''
+        cp -r ${node_modules}/. ./
+        chmod -R +w .
+      '';
+      buildPhase = ''
+        patchShebangs .
+        yarn build
+      '';
+      installPhase = ''
+        cp -r dist $out
+        cp -r ${common.ui.favicons}/. $out/
+      '';
+      dontFixup = true;
+    };
+  };
+
 }

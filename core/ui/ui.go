@@ -270,10 +270,10 @@ func SetupTray(
 		}
 	}()
 
-	mDashboard := systray.AddMenuItem("Dashboard", "")
+	mWebUI := systray.AddMenuItem("Web UI", "")
 	go func() {
-		for range mDashboard.ClickedCh {
-			url := fmt.Sprintf("http://127.0.0.1:%d/dashboard/", appConfig.ApiPort)
+		for range mWebUI.ClickedCh {
+			url := fmt.Sprintf("http://127.0.0.1:%d/ui/", appConfig.ApiPort)
 			openWithDefaultApp(url)
 		}
 	}()

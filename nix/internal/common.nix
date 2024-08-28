@@ -131,6 +131,10 @@ in rec {
     path = inputs.self + "/core";
   };
 
+  uiSrc = builtins.path {
+    path = inputs.self + "/ui";
+  };
+
   swagger-ui = let
     name = "swagger-ui";
     version = "5.2.0";
@@ -171,26 +175,6 @@ in rec {
       ${src} >$out
   '';
 
-  dashboard = pkgs.runCommand "dashboard" {
-    buildInputs = with pkgs; [ imagemagick ];
-  } ''
-    cp -r ${inputs.self + "/ui/dashboard"} $out
-    chmod -R +w $out
-    convert -background none -size 32x32 ${inputs.self + "/ui/favicon.svg"} $out/favicon-32x32.png
-    convert -background none -size 16x16 ${inputs.self + "/ui/favicon.svg"} $out/favicon-16x16.png
-    convert $out/favicon-*.png $out/favicon.ico
-
-    mkdir -p $out/highlight.js
-    cp ${pkgs.fetchurl {
-      url = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js";
-      hash = "sha256-RJn/k21P1WKtylpcvlEtwZ64CULu6GGNr7zrxPeXS9s=";
-    }} $out/highlight.js/highlight.min.js
-    cp ${pkgs.fetchurl {
-      url = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css";
-      hash = "sha256-+94KwJIdhsNWxBUy5zGciHojvRuP8ABgyrRHJJ8Dx88=";
-    }} $out/highlight.js/default.min.css
-  '';
-
   mithrilGenesisVerificationKeys = {
     preview = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/pre-release-preview/genesis.vkey");
     preprod = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/release-preprod/genesis.vkey");
@@ -216,5 +200,75 @@ in rec {
     x86_64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
     aarch64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
   }.${targetSystem} // { version = ver; };
+
+  ui = rec {
+    nodejs = pkgs.nodejs;
+
+    yarn = pkgs.yarn.override { inherit nodejs; };
+
+    yarn2nix = let
+      src = builtins.path { path = pkgs.path + "/pkgs/development/tools/yarn2nix-moretea/yarn2nix"; };
+    in
+      import src {
+        inherit pkgs nodejs yarn;
+        allowAliases = true;
+      };
+
+    lockfiles = pkgs.lib.cleanSourceWith {
+      src = uiSrc;
+      name = "ui-lockfiles";
+      filter = name: type: let b = baseNameOf (toString name); in (b == "package.json" || b == "yarn.lock");
+    };
+
+    favicons = pkgs.runCommand "favicons" {
+      buildInputs = with pkgs; [ imagemagick ];
+      original = builtins.path { path = uiSrc + "/favicon.svg"; };
+    } ''
+      mkdir -p $out
+      convert -background none -size 32x32 $original $out/favicon-32x32.png
+      convert -background none -size 16x16 $original $out/favicon-16x16.png
+      convert $out/favicon-*.png $out/favicon.ico
+    '';
+
+    offlineCache = yarn2nix.importOfflineCache (yarn2nix.mkYarnNix {
+      yarnLock = lockfiles + "/yarn.lock";
+    });
+
+    setupCacheAndGypDirs = ''
+      # XXX: `HOME` (for various caches) cannot be under our source root:
+      export HOME=$(realpath $NIX_BUILD_TOP/home)
+      mkdir -p $HOME
+
+      # Do not look up in the registry, but in the offline cache, cf. <https://classic.yarnpkg.com/en/docs/yarnrc>:
+      echo '"--offline" true' >>$HOME/.yarnrc
+      echo '"--frozen-lockfile" true' >>$HOME/.yarnrc
+      yarn config set yarn-offline-mirror ${offlineCache}
+
+      # Don’t try to download prebuilded packages (with prebuild-install):
+      export npm_config_build_from_source=true
+      ( echo 'buildFromSource=true' ; echo 'compile=true' ; ) >$HOME/.prebuild-installrc
+
+      ${pkgs.lib.concatMapStringsSep "\n" (cacheDir: ''
+
+        # Node.js headers for building native `*.node` extensions with node-gyp:
+        # TODO: learn why installVersion=9 – where does it come from? see node-gyp
+        mkdir -p ${cacheDir}/node-gyp/${nodejs.version}
+        echo 9 > ${cacheDir}/node-gyp/${nodejs.version}/installVersion
+        ln -sf ${nodejs}/include ${cacheDir}/node-gyp/${nodejs.version}
+
+      '') [
+        "$HOME/.cache"          # Linux, Windows (cross-compiled)
+        "$HOME/Library/Caches"  # Darwin
+      ]}
+
+      # These are sometimes useful:
+      #
+      # npm config set loglevel verbose
+      # echo '"--verbose" true' >>$HOME/.yarnrc
+      # export NODE_OPTIONS='--trace-warnings'
+      # export DEBUG='*'
+      # export DEBUG='node-gyp'
+    '';
+  };
 
 }
