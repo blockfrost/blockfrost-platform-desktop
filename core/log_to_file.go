@@ -48,14 +48,18 @@ func duplicateOutputToFile(logFile string) func() {
 	var wgScanners sync.WaitGroup
 	wgScanners.Add(2)
 
-	lines := make(chan string)
+	type LogLine struct {
+		timestamp string
+		isStderr bool
+		msg string
+	}
+
+	lines := make(chan LogLine)
 
 	go func() {
 		scanner := bufio.NewScanner(newStdoutR)
 		for scanner.Scan() {
-			line := logTime() + " " + scanner.Text()
-			lines <- line
-			originalStdout.WriteString(line + newLine)
+			lines <- LogLine { timestamp: logTime(), isStderr: false, msg: scanner.Text() }
 		}
 		wgScanners.Done()
 	}()
@@ -63,10 +67,7 @@ func duplicateOutputToFile(logFile string) func() {
 	go func() {
 		scanner := bufio.NewScanner(newStderrR)
 		for scanner.Scan() {
-			now := logTime()
-			line := scanner.Text()
-			lines <- now + " [stderr] " + line
-			originalStderr.WriteString(now + " " + line + newLine)
+			lines <- LogLine { timestamp: logTime(), isStderr: true, msg: scanner.Text() }
 		}
 		wgScanners.Done()
 	}()
@@ -76,7 +77,14 @@ func duplicateOutputToFile(logFile string) func() {
 	go func() {
 		defer fp.Close()
 		for line := range lines {
-			fp.WriteString(stripansi.Strip(line) + newLine)
+			stderrPrefix := ""
+			if line.isStderr {
+				stderrPrefix = "[stderr] "
+				originalStderr.WriteString(line.timestamp + " " + line.msg + newLine)
+			} else {
+				originalStdout.WriteString(line.timestamp + " " + line.msg + newLine)
+			}
+			fp.WriteString(line.timestamp + " " + stderrPrefix + stripansi.Strip(line.msg) + newLine)
 		}
 		writerDone <- struct{}{}
 	}()
@@ -85,9 +93,23 @@ func duplicateOutputToFile(logFile string) func() {
 	closeOutputs := func(){
 		newStdoutW.Close()
 		newStderrW.Close()
+		os.Stdout = originalStdout
+		os.Stderr = originalStderr
 		wgScanners.Wait()
 		close(lines)
 		<-writerDone
+
+		bufio.NewWriter(os.Stdout).Flush()
+		bufio.NewWriter(os.Stderr).Flush()
+		os.Stdout.Sync()
+		os.Stderr.Sync()
+
+		// XXX: for whatever reason this is needed after integrating WebKit;
+		// otherwise the terminal eats the last line. When you pipe through `|
+		// cat`, it works again. Flushing/syncing/closing changes nothing. Note
+		// that this line is _sometimes_ written to the terminal, but rarely,
+		// like 1 in 10 times? Some race condition in stdlib? :/
+		fmt.Fprintln(os.Stdout)
 	}
 
 	return closeOutputs

@@ -30,8 +30,23 @@ in rec {
       patches = (old.patches or []) ++ [ ./nodejs--no-verify-snapshot-checksum.patch ];
     });
 
+    # XXX: By default on x86_64-darwin, MACOSX_DEPLOYMENT_TARGET=10.12, it has to be at least 10.15 for leveldb.
+    # XXX: On aarch64-darwin, MACOSX_DEPLOYMENT_TARGET=11.0. Let's force the same on x86_64.
+    # XXX: Don’t use pkgs11 too much on x86_64, or you’ll recompile the world.
+    pkgs11 =
+      if targetSystem == "aarch64-darwin"
+      then inputs.nixpkgs.legacyPackages.${targetSystem}
+      else import (inputs.nixpkgs.legacyPackages.${targetSystem}.runCommandNoCC "nixpkgs-patched" {} ''
+        cp -r ${inputs.nixpkgs} $out
+        chmod -R +w $out
+        cd $out
+        patch -p1 -i ${./nixpkgs-x86-darwin-min-sdk-version.patch}
+      '') { system = targetSystem; config = {}; };
+
+    buildTimeSDK = pkgs11.darwin.apple_sdk_11_0;
+
     # For resolving the node_modules:
-    theirPackage = (pkgs.callPackage "${patchedSrc}/yarn-project.nix" {
+    theirPackage = (buildTimeSDK.callPackage "${patchedSrc}/yarn-project.nix" {
       nodejs = nodejs-no-snapshot;
     } {
       src = patchedSrc;
@@ -50,8 +65,8 @@ in rec {
         buildTimeSDK.xcodebuild
         buildTimeSDK.frameworks.AppKit
         pkgs.perl
-        pkgs.pkgconfig
-        pkgs.darwin.cctools
+        pkgs.pkg-config
+        pkgs11.darwin.cctools
         buildTimeSDK.frameworks.CoreServices
         buildTimeSDK.objc4
         pkgs.jq
@@ -156,29 +171,41 @@ in rec {
     name = "blockchain-services";
     src = common.coreSrc;
     vendorHash = common.blockchain-services-exe-vendorHash;
-    nativeBuildInputs = with pkgs; [ imagemagick go-bindata ];
     buildInputs =
       (with pkgs; [ ])
-      ++ (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa WebKit ]);
+      ++ (with pkgs.darwin.apple_sdk_11_0.frameworks; [ Cocoa WebKit UniformTypeIdentifiers ]);
     overrideModAttrs = oldAttrs: {
       buildInputs = (oldAttrs.buildInputs or []) ++ buildInputs;
     };
     preBuild = ''
-      convert -background none -size 66x66 cardano-template.svg cardano.png
-      cp cardano.png tray-icon
-      cp ${common.openApiJson} openapi.json
-      go-bindata -pkg assets -o assets/assets.go tray-icon openapi.json
-      mkdir -p constants && cp ${common.constants} constants/constants.go
+      ln -sf ${common.go-constants}/constants ./
+      ln -sf ${go-assets}/assets ./
+      # go:embed forbids symlinks, so:
+      cp -R ${ui.dist} ./web-ui
 
       if [ -e vendor ] ; then
         chmod -R +w vendor
         (
           cd vendor/github.com/getlantern/systray
-          patch -p1 -i ${./getlantern-systray--darwin-handle-reopen.patch}
+          patch -p1 -i ${./getlantern-systray--darwin-no-app-delegate.patch }
+        )
+        (
+          cd vendor/github.com/wailsapp/wails
+          patch -p1 -i ${./wails--darwin-handle-reopen.patch}
         )
       fi
     '';
   };
+
+  go-assets = pkgs.runCommand "go-assets" {
+    nativeBuildInputs = with pkgs; [ imagemagick go-bindata ];
+  } ''
+    magick -background none -size 66x66 ${builtins.path { path = common.coreSrc + "/cardano-template.svg"; }} cardano.png
+    cp cardano.png tray-icon
+    cp ${common.openApiJson} openapi.json
+    mkdir -p $out/assets
+    go-bindata -pkg assets -o $out/assets/assets.go tray-icon openapi.json
+  '';
 
   infoPlist = pkgs.writeText "Info.plist" ''
     <?xml version="1.0" encoding="UTF-8"?>
@@ -220,8 +247,8 @@ in rec {
   } ''
     mkdir -p iconset.iconset
     ${lib.concatMapStringsSep "\n" (dim: ''
-      convert -background none -size ${d2s dim}       ${source} iconset.iconset/icon_${d2s dim}.png
-      convert -background none -size ${d2s (dim * 2)} ${source} iconset.iconset/icon_${d2s dim}@2x.png
+      magick -background none -size ${d2s dim}       ${source} iconset.iconset/icon_${d2s dim}.png
+      magick -background none -size ${d2s (dim * 2)} ${source} iconset.iconset/icon_${d2s dim}@2x.png
     '') sizes}
     /usr/bin/iconutil --convert icns --output $out iconset.iconset
   '';
@@ -320,8 +347,8 @@ in rec {
     mkdir -p $out/bin
     cp -r ${binBundle}/. $out/bin/
 
-    ln -sf ${pkglibdir} $out/pkglibdir
-    ln -sf ${postgresPackage}/share $out/share
+    ln -sfn ${pkglibdir} $out/pkglibdir
+    ln -sfn ${postgresPackage}/share $out/share
   '';
 
   nix-bundle-exe-same-dir = pkgs.runCommand "nix-bundle-exe-same-dir" {} ''
@@ -462,17 +489,6 @@ in rec {
       cp -r ${sdk}/usr/lib/libffi.* $out/lib/
     '';
   };
-
-  # XXX: do not give that to code building target system binaries, or
-  # users will lose compatibility with older MacOS; but it’s fine to use
-  # the modern one for building tools we only use in build time
-  buildTimeSDK =
-    if targetSystem == "aarch64-darwin"
-    then pkgs.darwin.apple_sdk_11_0
-    else (pkgs.darwin.apple_sdk_10_12 // {
-      xcodebuild = pkgs.xcbuild;
-      objc4 = pkgs.darwin.objc4;
-    });
 
   # For the DMG tooling:
   newestSDK = pkgs.darwin.apple_sdk_11_0;
@@ -680,7 +696,7 @@ in rec {
     node_modules = pkgs.stdenv.mkDerivation {
       name = "ui-node_modules";
       src = common.ui.lockfiles;
-      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkgconfig jq ]);
+      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkg-config jq ]);
       configurePhase = common.ui.setupCacheAndGypDirs;
       buildPhase = ''
         # Do not look up in the registry, but in the offline cache:
@@ -720,7 +736,7 @@ in rec {
     dist = pkgs.stdenv.mkDerivation {
       name = "ui-dist";
       src = common.uiSrc;
-      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkgconfig jq ]);
+      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkg-config jq ]);
       CI = "nix";
       NODE_ENV = "production";
       BUILDTYPE = "Release";

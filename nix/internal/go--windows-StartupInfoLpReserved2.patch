@@ -1,9 +1,9 @@
 diff --git a/src/syscall/exec_windows.go b/src/syscall/exec_windows.go
-index 45295dedff..cae07b0433 100644
+index 1220de4cdf..ef439d85a3 100644
 --- a/src/syscall/exec_windows.go
 +++ b/src/syscall/exec_windows.go
-@@ -250,6 +250,8 @@ type SysProcAttr struct {
- 	NoInheritHandles           bool                // if set, each inheritable handle in the calling process is not inherited by the new process
+@@ -249,6 +249,8 @@ type SysProcAttr struct {
+ 	NoInheritHandles           bool                // if set, no handles are inherited by the new process, not even the standard handles, contained in ProcAttr.Files, nor the ones contained in AdditionalInheritedHandles
  	AdditionalInheritedHandles []Handle            // a list of additional handles, already marked as inheritable, that will be inherited by the new process
  	ParentProcess              Handle              // if non-zero, the new process regards the process given by this handle as its parent process, and AdditionalInheritedHandles, if set, should exist in this parent process
 +	StartupInfoCbReserved2     uint16
@@ -11,7 +11,7 @@ index 45295dedff..cae07b0433 100644
  }
  
  var zeroProcAttr ProcAttr
-@@ -410,6 +412,9 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle
+@@ -382,6 +384,9 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle
  		return 0, 0, err
  	}
  
@@ -22,7 +22,7 @@ index 45295dedff..cae07b0433 100644
  	flags := sys.CreationFlags | CREATE_UNICODE_ENVIRONMENT | _EXTENDED_STARTUPINFO_PRESENT
  	if sys.Token != 0 {
 diff --git a/src/syscall/types_windows.go b/src/syscall/types_windows.go
-index 384b5b4f2c..497ccf7357 100644
+index b338ec4700..1e7557274d 100644
 --- a/src/syscall/types_windows.go
 +++ b/src/syscall/types_windows.go
 @@ -483,8 +483,8 @@ type StartupInfo struct {

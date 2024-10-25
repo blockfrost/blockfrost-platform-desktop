@@ -1,0 +1,65 @@
+diff --git a/Source/WebKit/Shared/glib/ProcessExecutablePathGLib.cpp b/Source/WebKit/Shared/glib/ProcessExecutablePathGLib.cpp
+index 40d482a..38d1b70 100644
+--- a/Source/WebKit/Shared/glib/ProcessExecutablePathGLib.cpp
++++ b/Source/WebKit/Shared/glib/ProcessExecutablePathGLib.cpp
+@@ -32,7 +32,6 @@
+ 
+ namespace WebKit {
+ 
+-#if ENABLE(DEVELOPER_MODE)
+ static String getExecutablePath()
+ {
+     CString executablePath = FileSystem::currentExecutablePath();
+@@ -40,11 +39,9 @@ static String getExecutablePath()
+         return FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(executablePath.data()));
+     return { };
+ }
+-#endif
+ 
+ static String findWebKitProcess(const char* processName)
+ {
+-#if ENABLE(DEVELOPER_MODE)
+     static const char* execDirectory = g_getenv("WEBKIT_EXEC_PATH");
+     if (execDirectory) {
+         String processPath = FileSystem::pathByAppendingComponent(FileSystem::stringFromFileSystemRepresentation(execDirectory), StringView::fromLatin1(processName));
+@@ -58,7 +55,6 @@ static String findWebKitProcess(const char* processName)
+         if (FileSystem::fileExists(processPath))
+             return processPath;
+     }
+-#endif
+ 
+     return FileSystem::pathByAppendingComponent(FileSystem::stringFromFileSystemRepresentation(PKGLIBEXECDIR), StringView::fromLatin1(processName));
+ }
+diff --git a/Source/WebKit/UIProcess/WebsiteData/glib/WebsiteDataStoreGLib.cpp b/Source/WebKit/UIProcess/WebsiteData/glib/WebsiteDataStoreGLib.cpp
+index 50cd5d9..8d8ed73 100644
+--- a/Source/WebKit/UIProcess/WebsiteData/glib/WebsiteDataStoreGLib.cpp
++++ b/Source/WebKit/UIProcess/WebsiteData/glib/WebsiteDataStoreGLib.cpp
+@@ -50,8 +50,12 @@ const String& WebsiteDataStore::defaultBaseCacheDirectory()
+     static NeverDestroyed<String> baseCacheDirectory;
+     static std::once_flag once;
+     std::call_once(once, [] {
+-
+-        baseCacheDirectory.get() = FileSystem::pathByAppendingComponent(FileSystem::userCacheDirectory(), programName());
++        const char* envOverride = g_getenv("WEBKIT_DEFAULT_CACHE_DIR");
++        if (envOverride) {
++            baseCacheDirectory.get() = String::fromUTF8(envOverride);
++        } else {
++            baseCacheDirectory.get() = FileSystem::pathByAppendingComponent(FileSystem::userCacheDirectory(), programName());
++        }
+     });
+     return baseCacheDirectory;
+ }
+@@ -61,7 +65,12 @@ const String& WebsiteDataStore::defaultBaseDataDirectory()
+     static NeverDestroyed<String> baseDataDirectory;
+     static std::once_flag once;
+     std::call_once(once, [] {
+-        baseDataDirectory.get() = FileSystem::pathByAppendingComponent(FileSystem::userDataDirectory(), programName());
++        const char* envOverride = g_getenv("WEBKIT_DEFAULT_DATA_DIR");
++        if (envOverride) {
++            baseDataDirectory.get() = String::fromUTF8(envOverride);
++        } else {
++            baseDataDirectory.get() = FileSystem::pathByAppendingComponent(FileSystem::userDataDirectory(), programName());
++        }
+     });
+     return baseDataDirectory;
+ }

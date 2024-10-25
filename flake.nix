@@ -1,7 +1,7 @@
 {
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-24.05-darwin";
 
     flake-compat.url = "github:input-output-hk/flake-compat";
     flake-compat.flake = false;
@@ -23,6 +23,9 @@
     # FIXME: ‘nsis’ can’t cross-compile with the regular Nixpkgs (above)
     nixpkgs-nsis.url = "github:input-output-hk/nixpkgs/be445a9074f139d63e704fa82610d25456562c3d";
     nixpkgs-nsis.flake = false; # too old
+
+    devshell.url = "github:numtide/devshell";
+    devshell.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs: let
@@ -35,6 +38,10 @@
 
     internal = import ./nix/internal.nix { inherit inputs; };
 
+    devShells = lib.genAttrs supportedSystem (buildSystem:
+      import ./nix/devshells.nix { inherit inputs buildSystem; }
+    );
+
     hydraJobs = {
       installer = {
         x86_64-linux   = inputs.self.packages.x86_64-linux.installer;
@@ -43,10 +50,14 @@
         x86_64-windows = inputs.self.packages.x86_64-linux.installer-x86_64-windows;
       };
 
+      inherit (inputs.self) devShells;
+
       required = inputs.nixpkgs.legacyPackages.x86_64-linux.releaseTools.aggregate {
         name = "github-required";
         meta.description = "All jobs required to pass CI";
-        constituents = __attrValues inputs.self.hydraJobs.blockchain-services-installer;
+        constituents =
+          __attrValues inputs.self.hydraJobs.installer ++
+          __attrValues inputs.self.hydraJobs.devShells;
       };
     };
   };

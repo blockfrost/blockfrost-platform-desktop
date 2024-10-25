@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="./favicon-32x32.png" sizes="32x32" />
     <link rel="icon" type="image/png" href="./favicon-16x16.png" sizes="16x16" />
     <link rel="stylesheet" href="./reset.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
+    <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
     <style>
       body, html {
           height: 100%;
@@ -57,7 +57,7 @@
       #side-panel a.network {
           display: block;
           text-decoration: none;
-          height: 30px;
+          height: 2em;
           border-radius: 4px;
           background-color: #ccc;
           display: flex;
@@ -153,15 +153,12 @@
       </div>
     </div>
   </div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
   <script>
     (function(){
-      const apiUrl = window.location.origin;
-      const wsUrl = apiUrl.replace(/^http/, 'ws') + '/v1/websocket';
+      let apiUrl = '';
 
       const eLink = document.querySelector('#header a');
-      eLink.href = wsUrl;
-      eLink.textContent = wsUrl;
 
       const eNetworks = document.querySelector('#side-panel .networks');
       const eServices = document.querySelector('#side-panel .services');
@@ -222,13 +219,6 @@
         eService.querySelector('.url').href = json.url;
       };
 
-      fetch(apiUrl + '/v1/info').then((r) => { return r.json(); }).then((json) => {
-        redrawNetworks(json);
-        for (const service of json.services) {
-          redrawService(service);
-        }
-      });
-
       const eContentWrapper = document.querySelector('#content-wrapper');
 
       const eContent = document.querySelector('#content');
@@ -274,25 +264,65 @@
         }
       };
 
-      logEvent('Connecting…');
+      async function fetchConfigAndConnect() {
+        const retryDelay = 5 * 1000;
+        while (true) {
+          try {
+            logEvent('Fetching UI config…');
+            const configResponse = await fetch('./web-ui-config.json');
+            if (!configResponse.ok) throw new Error('Non-200 response: ./web-ui-config.json');
+            const config = await configResponse.json();
+            apiUrl = config.api_url;
+            const wsUrl = apiUrl.replace(/^http/, 'ws') + '/v1/websocket';
 
-      const ws = new WebSocket(wsUrl);
+            eLink.href = wsUrl;
+            eLink.textContent = wsUrl;
 
-      ws.addEventListener('open', () => {
-        logEvent('Connected.');
-      });
+            const infoResponse = await fetch(apiUrl + '/v1/info');
+            if (!infoResponse.ok) throw new Error('Non-200 response: /v1/info');
+            const info = await infoResponse.json();
 
-      ws.addEventListener('error', (error) => {
-        logEvent('Connection error.', error);
-      });
+            redrawNetworks(info);
+            for (const service of info.services) {
+              redrawService(service);
+            }
 
-      ws.addEventListener('message', (event) => {
-        logEvent('', JSON.parse(event.data));
-      });
+            await new Promise((resolve, reject) => {
+              logEvent('Connecting…');
 
-      ws.addEventListener('close', (event) => {
-        logEvent('Connection closed.', event);
-      });
+              const ws = new WebSocket(wsUrl);
+
+              ws.addEventListener('open', () => {
+                logEvent('Connected.');
+              });
+
+              ws.addEventListener('error', (error) => {
+                logEvent('Connection error.', error);
+                reject(error);
+              });
+
+              ws.addEventListener('message', (event) => {
+                logEvent('', JSON.parse(event.data));
+              });
+
+              ws.addEventListener('close', (event) => {
+                logEvent('Connection closed.', event);
+                reject(event);
+              });
+            });
+          } catch (error) {
+            logEvent(`Error, retrying in ${retryDelay / 1000} s…`, {
+              name: error.name,
+              message: error.message,
+              stack: error.stack,
+            });
+            console.error(error);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+      }
+
+      fetchConfigAndConnect();
     })();
   </script>
 </body>

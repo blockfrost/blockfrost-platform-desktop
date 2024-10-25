@@ -21,11 +21,11 @@ in rec {
   # XXX: we have to be a bit creative to cross-compile Go code for Windows:
   #   • having a MinGW-w64 stdenv (for the C/C++ parts),
   #   • Linux Go (but instructed to cross-compile),
-  #   • and taking go-modules (vendor) from the Linux derivation – these are only sources
+  #   • and taking goModules (vendor) from the Linux derivation – these are only sources
   blockchain-services-exe = let
     noConsoleWindow = true;
     go = patchedGo;
-    go-modules = inputs.self.internal.x86_64-linux.blockchain-services-exe.go-modules;
+    goModules = inputs.self.internal.x86_64-linux.blockchain-services-exe.goModules;
   in pkgs.pkgsCross.mingwW64.stdenv.mkDerivation {
     name = "blockchain-services";
     src = common.coreSrc;
@@ -36,12 +36,12 @@ in rec {
     GOOS = "windows";
     GOARCH = "amd64";
     inherit (go) CGO_ENABLED;
-    nativeBuildInputs = [ go ] ++ (with pkgs; [ go-bindata imagemagick ]);
+    nativeBuildInputs = [ go ];
     configurePhase = ''
       export GOCACHE=$TMPDIR/go-cache
       export GOPATH="$TMPDIR/go"
       rm -rf vendor
-      cp -r --reflink=auto ${go-modules} vendor
+      cp -r --reflink=auto ${goModules} vendor
 
       chmod -R +w vendor
       (
@@ -57,20 +57,37 @@ in rec {
         cd vendor/github.com/UserExistsError/conpty
         patch -p1 -i ${./conpty--get-pid-add-env.patch}
       )
+      (
+        cd vendor/github.com/wailsapp/go-webview2
+        patch -p1 -i ${pkgs.fetchurl {
+          # Fix an infinite recursion on errors:
+          url = "https://github.com/wailsapp/go-webview2/pull/7.patch";
+          hash = "sha256-Cj/O131ywEXShaBa116U1ldmLzMT0g3I/7bAtrQen88=";
+        }}
+      )
     '';
     buildPhase = ''
-      cp ${icon} tray-icon
-      cp ${common.openApiJson} openapi.json
-      go-bindata -pkg assets -o assets/assets.go tray-icon openapi.json
-      mkdir -p constants && cp ${common.constants} constants/constants.go
+      ln -sf ${common.go-constants}/constants ./
+      ln -sf ${go-assets}/assets ./
+      # go:embed forbids symlinks, so:
+      cp -R ${ui.dist} ./web-ui
       go build ${if noConsoleWindow then "-ldflags -H=windowsgui" else ""}
     '';
     installPhase = ''
       mkdir -p $out
       mv blockchain-services.exe $out/
     '';
-    passthru = { inherit go go-modules; };
+    passthru = { inherit go goModules; };
   };
+
+  go-assets = pkgs.runCommand "go-assets" {
+    nativeBuildInputs = with pkgs; [ go-bindata ];
+  } ''
+    cp ${icon} tray-icon
+    cp ${common.openApiJson} openapi.json
+    mkdir -p $out/assets
+    go-bindata -pkg assets -o $out/assets/assets.go tray-icon openapi.json
+  '';
 
   win-test-exe = let
     go = patchedGo;
@@ -109,9 +126,9 @@ in rec {
     buildInputs = with pkgs; [ imagemagick ];
   } ''
     ${lib.concatMapStringsSep "\n" (dim: ''
-      convert -background none -size ${d2s dim} ${source} ${d2s dim}.png
+      magick -background none -size ${d2s dim} ${source} ${d2s dim}.png
     '') sizes}
-    convert ${lib.concatMapStringsSep " " (dim: "${d2s dim}.png") sizes} $out
+    magick ${lib.concatMapStringsSep " " (dim: "${d2s dim}.png") sizes} $out
   '';
 
   icon = svg2ico (builtins.path { path = common.coreSrc + "/cardano.svg"; });
@@ -202,6 +219,9 @@ in rec {
 
     mkdir -p $out/libexec/postgres
     cp -Lr ${postgresUnpacked}/{bin,lib,share,*license*.txt} $out/libexec/postgres/
+
+    mkdir -p $out/libexec/ourwebview2/
+    cp -Lr ${WebView2}/. $out/libexec/webview2/
 
     cp -Lr ${common.networkConfigs} $out/cardano-node-config
     cp -Lr ${common.swagger-ui} $out/swagger-ui
@@ -506,7 +526,7 @@ in rec {
             # Symlink Windows SDK in a standard location:
             lx_program_files="$HOME/.wine/drive_c/Program Files (x86)"
             mkdir -p "$lx_program_files"
-            ln -svf ${msvc-installed}/kits "$lx_program_files/Windows Kits"
+            ln -svfn ${msvc-installed}/kits "$lx_program_files/Windows Kits"
 
             # Symlink VC in a standard location:
             vc_versionYear="$(jq -r .info.productLineVersion <${msvc-cache}/*.manifest)"
@@ -756,6 +776,21 @@ in rec {
       ''}
     mv $HOME/.wine/drive_c/postgres $out
     cp ${cardano-js-sdk.msvc-installed}/VC/Tools/MSVC/*/bin/Hostx64/x64/{vcruntime140,vcruntime140_1,msvcp140}.dll $out/bin/
+  '';
+
+  WebView2-cab = pkgs.fetchurl {
+    url = "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/bbde725f-75ff-4201-ace5-f409a285fa16/Microsoft.WebView2.FixedVersionRuntime.128.0.2739.67.x64.cab";
+    hash = "sha256-2zkZIF9rEF/6Ev2L+m5ZqNNjaxTlYisGyStGsUOHfGs=";
+  };
+
+  WebView2 = pkgs.runCommandNoCC "WebView2" {
+    buildInputs = [ pkgs.cabextract ];
+  } ''
+    mkdir -p $out
+    cabextract ${WebView2-cab} --directory $out/
+    topdir=$(ls $out/)
+    mv $out/"$topdir"/* $out/
+    rmdir $out/"$topdir"
   '';
 
   ui = rec {

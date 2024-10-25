@@ -25,36 +25,60 @@ in rec {
     patches = (old.patches or []) ++ [ ./nodejs--no-verify-snapshot-checksum.patch ];
   });
 
+  webkit2gtk = pkgs.webkitgtk_4_1.overrideAttrs (old: {
+    patches = (old.patches or []) ++ [ ./webkitgtk--specify-paths-via-env.patch ];
+  });
+
+  webkit2Bundle = mkBundle {
+    "jsc" = "${webkit2gtk}/libexec/webkit2gtk-4.1/jsc";
+    "MiniBrowser" = "${webkit2gtk}/libexec/webkit2gtk-4.1/MiniBrowser";
+    "WebKitNetworkProcess" = "${webkit2gtk}/libexec/webkit2gtk-4.1/WebKitNetworkProcess";
+    "WebKitWebProcess" = "${webkit2gtk}/libexec/webkit2gtk-4.1/WebKitWebProcess";
+  };
+
   blockchain-services-exe = pkgs.buildGoModule rec {
     name = "blockchain-services";
     src = common.coreSrc;
     vendorHash = common.blockchain-services-exe-vendorHash;
-    nativeBuildInputs = with pkgs; [ pkgconfig imagemagick go-bindata ];
-    buildInputs = with pkgs; [
+    nativeBuildInputs = with pkgs; [ pkg-config ];
+    buildInputs = [ webkit2gtk ] ++ (with pkgs; [
       (libayatana-appindicator-gtk3.override {
         gtk3 = gtk3-x11;
         libayatana-indicator = libayatana-indicator.override { gtk3 = gtk3-x11; };
         libdbusmenu-gtk3 = libdbusmenu-gtk3.override { gtk3 = gtk3-x11; };
       })
       gtk3-x11
-    ];
+    ]);
     overrideModAttrs = oldAttrs: {
       buildInputs = (oldAttrs.buildInputs or []) ++ buildInputs;
     };
     preBuild = ''
-      convert -background none -size 44x44 cardano.svg cardano.png
-      cp cardano.png tray-icon
-      cp ${common.openApiJson} openapi.json
-      go-bindata -pkg assets -o assets/assets.go tray-icon openapi.json
-      mkdir -p constants && cp ${common.constants} constants/constants.go
+      ln -sf ${common.go-constants}/constants ./
+      ln -sf ${go-assets}/assets ./
+      # go:embed forbids symlinks, so:
+      cp -R ${ui.dist} ./web-ui
     '';
+    meta.mainProgram = "blockchain-services";
   };
+
+  go-assets = pkgs.runCommand "go-assets" {
+    nativeBuildInputs = with pkgs; [ imagemagick go-bindata ];
+  } ''
+    magick -background none -size 44x44 ${builtins.path { path = common.coreSrc + "/cardano.svg"; }} cardano.png
+    cp cardano.png tray-icon
+    cp ${common.openApiJson} openapi.json
+    mkdir -p $out/assets
+    go-bindata -pkg assets -o $out/assets/assets.go tray-icon openapi.json
+  '';
 
   nix-bundle-exe = import inputs.nix-bundle-exe;
 
   # XXX: this tweaks `nix-bundle-exe` a little by making sure that each package lands in a separate
   # directory, because otherwise we get conflicts in e.g libstdc++ versions:
-  mkBundle = exes: (nix-bundle-exe {
+  mkBundle = exes': let
+    exes = lib.removeAttrs exes' ["extraInit"];
+    extraInit = exes'.extraInit or "";
+  in (nix-bundle-exe {
     inherit pkgs;
     bin_dir = "bin";
     exe_dir = "exe";
@@ -71,6 +95,13 @@ in rec {
           mv $out/exe/"$base" $out/."$base"-wrapped
           mv $out/bin/"$base" $out/
           sed -r 's,"\$\(dirname (.*?)\)" ,\1 , ; s,lib/,,g ; s,exe/'"$base"',.'"$base"'-wrapped,' -i $out/"$base"
+          ${lib.optionalString (extraInit != "") ''
+            head -n 3 $out/"$base" >$out/"$base".new
+            cat ${pkgs.writeText "extraInit" extraInit} >>$out/"$base".new
+            tail -n +4 $out/"$base" >>$out/"$base".new
+            mv $out/"$base".new $out/"$base"
+            chmod +x $out/"$base"
+          ''}
         else
           # static linking:
           mv "$out/bin/$base" $out/
@@ -127,8 +158,8 @@ in rec {
     mkdir -p $out/bin
     cp -r ${binBundle}/. $out/bin/
 
-    ln -sf ${pkglibdir} $out/pkglibdir
-    ln -sf ${postgresPackage}/share $out/share
+    ln -sfn ${pkglibdir} $out/pkglibdir
+    ln -sfn ${postgresPackage}/share $out/share
   '';
 
   testPostgres = pkgs.writeShellScriptBin "test-postgres" ''
@@ -165,11 +196,31 @@ in rec {
     exec ${postgresBundle}/bin/postgres
   '';
 
+  # $dir is $out/libexec/blockchain-services/
+  # TODO: move WEBKIT_EXEC_PATH here, but then `nix run -L` doesn’t work: Couldn't open libGLESv2.so.2: /nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-libGL-1.7.0/lib/libGLESv2.so.2: cannot open shared object file: No such file or directory
+  extraBSInit = ''
+    # Prevent a Gtk3 segfault, especially with WebKit2 this cannot be done from within the executable:
+    export XKB_CONFIG_EXTRA_PATH="$(realpath "$dir/../../share/xkb")"
+    # Prepend our libexec/xclip to PATH – for xclip on Linux, which is not installed on all distributions
+    export PATH="$(realpath "$dir/../xclip"):$PATH"
+    # WebKit2 data directories:
+    export WEBKIT_DEFAULT_CACHE_DIR="$HOME"/.local/share/blockchain-services/webkit2gtk
+    export WEBKIT_DEFAULT_DATA_DIR="$HOME"/.local/share/blockchain-services/webkit2gtk
+  '';
+
   blockchain-services = pkgs.runCommand "blockchain-services" {
     meta.mainProgram = blockchain-services-exe.name;
   } ''
     mkdir -p $out/bin $out/libexec/blockchain-services
-    cp ${blockchain-services-exe}/bin/* $out/libexec/blockchain-services/
+    cp ${blockchain-services-exe}/bin/blockchain-services $out/libexec/blockchain-services/.blockchain-services-wrapped
+    cp ${pkgs.writeScript "blockchain-services-non-bundle" ''
+      #!/bin/sh
+      set -x
+      set -eu
+      dir="$(cd -- "$(dirname "$(realpath "$0")")" >/dev/null 2>&1 ; pwd -P)"
+      ${extraBSInit}
+      exec "$dir"/.blockchain-services-wrapped "$@"
+    ''} $out/libexec/blockchain-services/blockchain-services
     ln -s $out/libexec/blockchain-services/* $out/bin/
 
     mkdir -p $out/libexec
@@ -196,14 +247,22 @@ in rec {
     mkdir -p $out
     cp -r --dereference ${unbundled}/libexec $out/
     chmod -R +w $out/libexec
+    cp -r --dereference ${webkit2Bundle} $out/libexec/webkit2
     rm -r $out/libexec/blockchain-services
-    cp -r --dereference ${mkBundle { "blockchain-services" = (lib.getExe unbundled); }} $out/libexec/blockchain-services
+    cp -r --dereference ${mkBundle {
+      "blockchain-services" = (lib.getExe blockchain-services-exe);
+      extraInit = ''
+        ${extraBSInit}
+        # Use the bundled WebKit2:
+        export WEBKIT_EXEC_PATH="$(realpath "$dir/../webkit2")"
+      '';
+    }} $out/libexec/blockchain-services
     mkdir -p $out/bin
     ln -s ../libexec/blockchain-services/blockchain-services $out/bin/
     cp -r --dereference ${unbundled}/share $out/ || true  # FIXME: unsafe! broken node_modules symlinks
     chmod -R +w $out/share
     cp $(find ${desktopItem} -type f -name '*.desktop') $out/share/blockchain-services.desktop
-    ${pkgs.imagemagick}/bin/convert -background none -size 1024x1024 \
+    ${pkgs.imagemagick}/bin/magick -background none -size 1024x1024 \
       ${builtins.path { path = common.coreSrc + "/cardano.svg"; }} $out/share/icon_large.png
   '';
 
@@ -215,6 +274,7 @@ in rec {
     comment = "Run Blockchain Services locally";
     categories = [ "Network" ];
     icon = "INSERT_ICON_PATH_HERE";
+    startupWMClass = "blockchain-services";
   };
 
   # XXX: Be *super careful* changing this!!! You WILL DELETE user data if you make a mistake. Ping @michalrus
@@ -265,7 +325,7 @@ in rec {
     node_modules = pkgs.stdenv.mkDerivation {
       name = "ui-node_modules";
       src = common.ui.lockfiles;
-      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkgconfig jq ]);
+      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkg-config jq ]);
       configurePhase = common.ui.setupCacheAndGypDirs;
       buildPhase = ''
         # Do not look up in the registry, but in the offline cache:
@@ -305,7 +365,7 @@ in rec {
     dist = pkgs.stdenv.mkDerivation {
       name = "ui-dist";
       src = common.uiSrc;
-      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkgconfig jq ]);
+      nativeBuildInputs = [ common.ui.yarn common.ui.nodejs ] ++ (with pkgs; [ python3 pkg-config jq ]);
       CI = "nix";
       NODE_ENV = "production";
       BUILDTYPE = "Release";

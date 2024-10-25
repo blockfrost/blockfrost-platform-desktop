@@ -1,16 +1,18 @@
 package main
 
 import (
+	"embed"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
-	"sync"
 	"io/ioutil"
 	"path/filepath"
 	"runtime"
 	"time"
 	"encoding/json"
+	"net/http"
 
 	t "iog.io/blockchain-services/types"
 	"iog.io/blockchain-services/constants"
@@ -19,6 +21,7 @@ import (
 	"iog.io/blockchain-services/httpapi"
 	"iog.io/blockchain-services/ui"
 	"iog.io/blockchain-services/mithrilcache"
+	"iog.io/blockchain-services/mainthread"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
@@ -26,7 +29,13 @@ import (
 	"github.com/shirou/gopsutil/v3/load"
 	"github.com/getlantern/systray"
 	"github.com/allan-simon/go-singleinstance"
+
+	wails3_application "github.com/wailsapp/wails/v3/pkg/application"
+	wails3_events "github.com/wailsapp/wails/v3/pkg/events"
 )
+
+//go:embed web-ui
+var webUIAssets embed.FS
 
 const (
 	OurLogPrefix = ourpaths.OurLogPrefix
@@ -199,23 +208,119 @@ func main() {
 		}}()
 	}
 
-	// Both macOS and Windows require that UI happens on the main thread:
-	var wgManager sync.WaitGroup
-	wgManager.Add(1)
+	wailsApp := wails3_application.New(wails3_application.Options{
+		Name:        "blockchain-services",
+		Description: "Full-node headless wallet backend with standardized API",
+		Services: []wails3_application.Service{},
+		Assets: wails3_application.AssetOptions{
+			Handler: (func() http.Handler {
+				regular := wails3_application.AssetFileServerFS(webUIAssets)
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path == "/web-ui-config.json" {
+						w.Header().Set("Content-Type", "application/json")
+						json.NewEncoder(w).Encode(map[string]string{
+							"api_url": fmt.Sprintf("http://127.0.0.1:%d", appConfig.ApiPort),
+						})
+					} else {
+						regular.ServeHTTP(w, r)
+					}
+				})
+			})(),
+		},
+		Mac: wails3_application.MacOptions{
+			ActivationPolicy: wails3_application.ActivationPolicyAccessory,
+			ApplicationShouldTerminateAfterLastWindowClosed: false,
+		},
+		Windows: wails3_application.WindowsOptions{
+			DisableQuitOnLastWindowClosed: true,
+			WebviewUserDataPath: ourpaths.WorkDir,
+			WebviewBrowserPath: ourpaths.LibexecDir + sep + "webview2",
+		},
+		Linux: wails3_application.LinuxOptions{
+			DisableQuitOnLastWindowClosed: true,
+			ProgramName: "blockchain-services",
+		},
+	})
+
+	// Window manager:
+	openURLInWebUI := make(chan string)
 	go func() {
-		defer systray.Quit()
-		defer wgManager.Done()
+		var currentlyOpenWindow *wails3_application.WebviewWindow
+		currentUrl := ""
+		for nextUrl := range openURLInWebUI {
+			if currentlyOpenWindow != nil {
+				if currentUrl != nextUrl {  // one less flicker
+					currentlyOpenWindow.SetURL(nextUrl)
+				}
+			} else {
+				currentlyOpenWindow = wailsApp.NewWebviewWindowWithOptions(wails3_application.WebviewWindowOptions{
+					Title: "blockchain-services",
+					Hidden: false,
+					ShouldClose: func(window *wails3_application.WebviewWindow) bool {
+						// window.SetURL("about:blank")  // decrease resource usage, a temporary solution
+						// window.Hide()
+						currentlyOpenWindow = nil
+						currentUrl = ""
+						setAccessoryActivationPolicyOnDarwin()
+						return true
+					},
+					Mac: wails3_application.MacWindow{
+						InvisibleTitleBarHeight: 50,
+						Backdrop: wails3_application.MacBackdropTranslucent,
+						TitleBar: wails3_application.MacTitleBarHiddenInset,
+					},
+					BackgroundColour: wails3_application.NewRGB(0xff, 0xff, 0xff),
+					// Beware, on Linux the root is "wails://localhost/", on Windows it’s "http://wails.localhost/".
+					URL: nextUrl,
+				})
+			}
+			setRegularActivationPolicyOnDarwin()
+			activateThisAppOnDarwin()
+			currentUrl = nextUrl
+		}
+	}()
+
+	// XXX: Both macOS and Windows require that UI happens on the main thread.
+	// XXX: On macOS both wails.Quit and systray.Quit call [NSApp terminate:nil], which is a hard exit,
+	// and Go’s deferred functions won’t run. Therefore wailsApp.Quit() has to be the last thing we call.
+	go func() {
+		defer func(){
+			fmt.Printf("%s[%d]: all good, exiting\n", OurLogPrefix, os.Getpid())
+			wailsApp.Quit()
+			if runtime.GOOS == "windows" {
+				// Otherwise it won’t quit on Windows… Maybe investigate why?
+				systray.Quit()
+			}
+		}()
 		manageChildren(commManager, appConfig, mithrilCachePort)
 	}()
 
-	systray.Run(ui.SetupTray(commUI, logFile, networks, appConfig), func(){
-		// It’s possible that this callback is called from macOS “Quit” even from the Dock area
-		// (we’re briefly shown there while dialogs are displayed) – let’s (re)initiate a clean shutdown:
-		commUI.InitiateShutdownCh <- struct{}{}
+	systraySetup := func() {
+		showWebUI := func(url string) {
+			openURLInWebUI <- url
+			// window.SetURL(url)
+			// window.Show()
+		}
+		systray.Register(ui.SetupTray(commUI, logFile, networks, appConfig, showWebUI), nil)
+	}
 
-		wgManager.Wait()
-		fmt.Printf("%s[%d]: all good, exiting\n", OurLogPrefix, os.Getpid())
-	})
+	if runtime.GOOS == "windows" {
+		// On Windows, `mainthread.Schedule` doesn’t yet work before `systray.Register`,
+		// and we have to register systray *before* running the Wails app.
+		systraySetup()
+	} else {
+		// On Linux/Darwin, we have to register it *after* the Wails app is started.
+		wailsApp.On(wails3_events.Common.ApplicationStarted, func(event *wails3_application.Event) {
+			// Sometimes it’s too early to run directly on Linux (Gtk), so let’s schedule on the next event loop iteration:
+			mainthread.Schedule(systraySetup)
+		})
+	}
+
+	err = wailsApp.Run()
+	if err != nil {
+		fmt.Printf("%s[%d]: fatal WebView error: %v\n", OurLogPrefix, os.Getpid(), err)
+		os.Exit(1)
+	}
 }
 
 type CommChannels_Manager struct {

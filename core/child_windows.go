@@ -125,7 +125,7 @@ func childProcessPTYWindows(
 			outputLines <- fmt.Sprintf("fatal: exec.CreateEnvBlock: %v", err)
 			return
 		}
-		cptyEnv = conpty.ConPtyEnv(envBlock)
+		cptyEnv = conpty.ConPtyEnv(&envBlock[0])
 	}
 
 	cpty, err := conpty.Start(cmdLine, cptyEnv)

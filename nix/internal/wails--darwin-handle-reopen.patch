@@ -1,0 +1,20 @@
+diff --git a/v3/pkg/application/application_darwin_delegate.m b/v3/pkg/application/application_darwin_delegate.m
+index 2b91eb4d..98524edd 100644
+--- a/v3/pkg/application/application_darwin_delegate.m
++++ b/v3/pkg/application/application_darwin_delegate.m
+@@ -33,13 +33,14 @@ extern void cleanup();
+ {
+     return YES;
+ }
++extern signed char lbs__ui__handle_app_reopen(signed char flag);
+ - (BOOL)applicationShouldHandleReopen:(NSNotification *)notification
+                     hasVisibleWindows:(BOOL)flag {
+     if( hasListeners(EventApplicationShouldHandleReopen) ) {
+         processApplicationEvent(EventApplicationShouldHandleReopen, @{@"hasVisibleWindows": @(flag)});
+     }
+     
+-    return TRUE;
++    return lbs__ui__handle_app_reopen(flag);
+ }
+ // GENERATED EVENTS START
+ - (void)applicationDidBecomeActive:(NSNotification *)notification {

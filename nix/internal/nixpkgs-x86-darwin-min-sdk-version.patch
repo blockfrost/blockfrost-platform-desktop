@@ -1,0 +1,13 @@
+diff --git a/pkgs/os-specific/darwin/apple-sdk-11.0/default.nix b/pkgs/os-specific/darwin/apple-sdk-11.0/default.nix
+index 238c1b7e460b..240f7e2ce3e5 100644
+--- a/pkgs/os-specific/darwin/apple-sdk-11.0/default.nix
++++ b/pkgs/os-specific/darwin/apple-sdk-11.0/default.nix
+@@ -62,7 +62,7 @@ let
+     if stdenv.isAarch64 then stdenv
+     else
+       let
+-        darwinMinVersion = "10.12";
++        darwinMinVersion = "11.0";
+         darwinSdkVersion = "11.0";
+       in
+       (overrideCC stdenv (mkCc stdenv.cc)).override {

@@ -93,9 +93,9 @@ in rec {
     }) // { inherit version; };
   }.${targetSystem};
 
-  blockchain-services-exe-vendorHash = "sha256-A1SGcW3+a5jTVMu2H2blEhnvlBD8S+zm61GriF47B0A=";
+  blockchain-services-exe-vendorHash = "sha256-3mz58RaOQvbZbTMCDwXTmIWUqMqpPlzy8222kvm9SOU=";
 
-  constants = pkgs.writeText "constants.go" ''
+  go-constants = pkgs.writeTextDir "constants/constants.go" ''
     package constants
 
     const (
@@ -254,7 +254,7 @@ in rec {
         # TODO: learn why installVersion=9 – where does it come from? see node-gyp
         mkdir -p ${cacheDir}/node-gyp/${nodejs.version}
         echo 9 > ${cacheDir}/node-gyp/${nodejs.version}/installVersion
-        ln -sf ${nodejs}/include ${cacheDir}/node-gyp/${nodejs.version}
+        ln -sfn ${nodejs}/include ${cacheDir}/node-gyp/${nodejs.version}
 
       '') [
         "$HOME/.cache"          # Linux, Windows (cross-compiled)

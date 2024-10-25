@@ -41,6 +41,7 @@ func SetupTray(
 	logFile string,
 	networks map[t.NetworkMagic]string,
 	appConfig appconfig.AppConfig,
+	showWebUI func(string),
 ) func() { return func() {
 	iconData, err := assets.Asset("tray-icon")
 	if err != nil {
@@ -266,15 +267,17 @@ func SetupTray(
 	go func() {
 		for range mSwaggerUI.ClickedCh {
 			url := fmt.Sprintf("http://127.0.0.1:%d/swagger-ui/", appConfig.ApiPort)
-			openWithDefaultApp(url)
+			showWebUI(url)
+			//openWithDefaultApp(url)
 		}
 	}()
 
-	mWebUI := systray.AddMenuItem("Web UI", "")
+	mWebUI := systray.AddMenuItem("Dashboard", "")
 	go func() {
 		for range mWebUI.ClickedCh {
 			url := fmt.Sprintf("http://127.0.0.1:%d/ui/", appConfig.ApiPort)
-			openWithDefaultApp(url)
+			showWebUI(url) // "/"
+			// openWithDefaultApp(url)
 		}
 	}()
 
@@ -284,7 +287,8 @@ func SetupTray(
 		mOgmiosDashboard.Disable()
 		for { select {
 		case <-mOgmiosDashboard.ClickedCh:
-			openWithDefaultApp(url)
+			showWebUI(url)
+			//openWithDefaultApp(url)
 		case url = <-fixme_SetOgmiosDashboard:
 			if url == "" {
 				mOgmiosDashboard.Disable()
