@@ -57,7 +57,7 @@
         meta.description = "All jobs required to pass CI";
         constituents =
           __attrValues inputs.self.hydraJobs.installer ++
-          __attrValues inputs.self.hydraJobs.devShells;
+          map (a: a.default) (__attrValues inputs.self.hydraJobs.devShells);
       };
     };
   };
