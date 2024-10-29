@@ -255,12 +255,10 @@ in rec {
 
   icons = svg2icns ./macos-app-icon.svg;
 
-  # cardano-node is already bundled by Haskell.nix; otherwise we’re getting missing
-  # symbols in dyld (TODO: investigate why)
-  cardano-node-bundle = pkgs.runCommand "bundle-cardano-node" {} ''
-    mkdir -p $out
-    cp -Rf ${cardano-node}/bin/. ${cardano-submit-api}/bin/. $out/
-  '';
+  cardano-node-bundle = mkBundle {
+    "cardano-node" = lib.getExe cardano-node;
+    "cardano-submit-api" = lib.getExe cardano-submit-api;
+  };
 
   blockchain-services = pkgs.runCommand "blockchain-services" {
     meta.mainProgram = blockchain-services-exe.name;
