@@ -638,7 +638,7 @@ in rec {
                 '.scripts[$key] = $val' package.json >package.json.new
               mv package.json.new package.json
 
-              wine npm.cmd run "$windowsScriptName"
+              wine npm.cmd run "$windowsScriptName" </dev/null
             done
 
             # Packages that have a binding.gyp but don’t have an "install" script in their package.json
