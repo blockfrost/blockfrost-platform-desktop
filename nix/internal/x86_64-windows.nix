@@ -619,7 +619,7 @@ in rec {
 
             export CHROMEDRIVER_FILEPATH="$(winepath -w ${lib.escapeShellArg (builtins.toFile "fake-chromedriver" "")})";
 
-            find -type f -name package.json | xargs grep -RF '"install":' | cut -d: -f1 \
+            find -type f -name package.json | { xargs grep -RF '"install":' || true ; } | cut -d: -f1 \
               | grep -vF 'node_modules/playwright/' \
               | while IFS= read -r package
             do

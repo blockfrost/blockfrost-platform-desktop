@@ -92,14 +92,14 @@ in rec {
 
         # x86_64 cross-compilation won’t fly in this pure derivation:
         find -type f '(' -name '*.gyp' -o -name '*.gypi' ')' \
-          | xargs grep -F '${changeFrom}' | cut -d: -f1 | sort --unique \
+          | { xargs grep -F '${changeFrom}' || true ; } | cut -d: -f1 | sort --unique \
           | while IFS= read -r file
         do
           sed -r 's/${changeFrom}/${changeTo}/g' -i "$file"
         done
 
         # Now we have to run the install scripts manually:
-        find -type f -name package.json | xargs grep -RF '"install":' | cut -d: -f1 \
+        find -type f -name package.json | { xargs grep -RF '"install":' || true ; } | cut -d: -f1 \
           | grep -vF 'node_modules/playwright/' \
           | grep -vF 'node_modules/napi-macros/example/' \
           | while IFS= read -r package
