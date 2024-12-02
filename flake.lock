@@ -3,16 +3,16 @@
     "cardano-js-sdk": {
       "flake": false,
       "locked": {
-        "lastModified": 1732368990,
-        "narHash": "sha256-9ndzrSW6LHBW8eN00bF1MVor6DdpCMubaXaZOODJ4tE=",
+        "lastModified": 1733127169,
+        "narHash": "sha256-BzOVazQQu2wXQ2LAduy0CmQ3y5wFisdHTcgSUl5ezug=",
         "owner": "input-output-hk",
         "repo": "cardano-js-sdk",
-        "rev": "0d9fa5f83b6e9cf34412eaf94cc1e4541f3b0159",
+        "rev": "379316d14c7774d2b7ef4ca726ed983f07568611",
         "type": "github"
       },
       "original": {
         "owner": "input-output-hk",
-        "ref": "@cardano-sdk/cardano-services@0.32.3",
+        "ref": "@cardano-sdk/cardano-services@0.33.0",
         "repo": "cardano-js-sdk",
         "type": "github"
       }
