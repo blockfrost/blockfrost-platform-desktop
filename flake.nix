@@ -9,7 +9,7 @@
     cardano-node.url = "github:IntersectMBO/cardano-node/9.1.0";
     cardano-node.flake = false; # prevent lockfile explosion
 
-    cardano-js-sdk.url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.33.1";
+    cardano-js-sdk.url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.33.2";
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
 
     ogmios.url = "github:CardanoSolutions/ogmios/v6.5.0";
