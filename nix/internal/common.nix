@@ -36,6 +36,7 @@ in rec {
       cd $out
       patch -p1 -i ${./ogmios-6-5-0--missing-srp-hash.patch}
       patch -p1 -i ${./ogmios--on-windows.patch}
+      patch -p1 -i ${./ogmios-6-9-0--fix-cabal-doctest.patch}
     '');
     inherit (inputs.ogmios.sourceInfo) rev shortRev lastModified lastModifiedDate;
   };
@@ -54,8 +55,9 @@ in rec {
           ++ (if pkgs ? libblst then [pkgs.libblst] else [])) ];
         packages.ogmios.components.library.preConfigure = "export GIT_SHA=${inputs.ogmios.rev}";
       })
-      ({ lib, pkgs, ...}: lib.mkIf (targetSystem == "x86_64-windows") {
+      ({ lib, pkgs, ...}: {
         packages.entropy.package.buildType = lib.mkForce "Simple";
+        packages.ouroboros-network-framework.doHaddock = false;
       })
     ];
   };
@@ -186,17 +188,11 @@ in rec {
     ver = (__fromJSON (__readFile (inputs.self + "/flake.lock"))).nodes.mithril.original.ref or "unknown-ref";
   in {
     x86_64-linux = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
-    x86_64-windows = pkgs.fetchurl (
-      if ver == "pull/1885/head" then {
-        name = "mithril-${ver}-windows-x64.zip";
-        url = "https://productionresultssa1.blob.core.windows.net/actions-results/d51b01f8-fa00-4b46-a824-8432f29f3f24/workflow-job-run-2c802917-68c0-5b3f-f64e-4f6eb0b9c055/artifacts/21053eecaedf8df59541c6255e7c6eda59099d752df277452b8703309566104e.zip?rscd=attachment%3B+filename%3D%22mithril-distribution-Windows-X64.zip%22&se=2024-08-12T22%3A24%3A57Z&sig=iVNccPnyxia2qitZH0AGrNx7lan56EqMVrLUzHaxdLw%3D&ske=2024-08-13T07%3A52%3A39Z&skoid=ca7593d4-ee42-46cd-af88-8b886a2f84eb&sks=b&skt=2024-08-12T19%3A52%3A39Z&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skv=2024-05-04&sp=r&spr=https&sr=b&st=2024-08-12T22%3A14%3A52Z&sv=2024-05-04";
-        hash = "sha256-Avz/uuoh7f2K0UuK1fRIrPMCOioH70K7488lisQz63g=";
-      } else {
-        name = "mithril-${ver}-windows-x64.tar.gz";
-        url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
-        hash = "sha256-dnAYZxgl6LfTHPXB8Ss1UR/cLiQwK00iXMd4YihiNSk=";
-      }
-    );
+    x86_64-windows = pkgs.fetchurl {
+      name = "mithril-${ver}-windows-x64.tar.gz";
+      url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
+      hash = "sha256-XS9tgSu1wOsLFz4COlXgO7WEGKgFw+/LJFY4tW7AwEs=";
+    };
     x86_64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
     aarch64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
   }.${targetSystem} // { version = ver; };
