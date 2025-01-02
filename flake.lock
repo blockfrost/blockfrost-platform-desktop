@@ -208,7 +208,7 @@
         "lastModified": 1731081092,
         "narHash": "sha256-MyZ/FIiKqe1tGMFpzTN7CW8rOqCcMF/bO9cryZEVzVU=",
         "ref": "refs/tags/v6.9.0",
-        "rev": "cf03a6f9190ee366c512eaf3c7425b123631a40f",
+        "rev": "a07c154eca6e4bf25ad1b3d50849f077aa628183",
         "revCount": 1650,
         "submodules": true,
         "type": "git",
