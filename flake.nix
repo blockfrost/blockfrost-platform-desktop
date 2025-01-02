@@ -18,6 +18,7 @@
       type = "git";
       submodules = true;
       flake = false;
+      allRefs = true;
     };
 
     mithril.url = "github:input-output-hk/mithril/2450.0";
