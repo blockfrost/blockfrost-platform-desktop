@@ -3,16 +3,16 @@
     "cardano-js-sdk": {
       "flake": false,
       "locked": {
-        "lastModified": 1734360969,
-        "narHash": "sha256-YtRdOPK3pk9y5in6A4Tu2bgUu5mLrLd+X/lG9r4Ra1k=",
+        "lastModified": 1735827851,
+        "narHash": "sha256-RbatSHLb0f1E3hBv7Q7nxqYmzhuv7qdOoaJ2bwiaRdI=",
         "owner": "input-output-hk",
         "repo": "cardano-js-sdk",
-        "rev": "fee20644d19c071f5c0a2d30640a4d58de82d4da",
+        "rev": "babafa33aedea682bb61dc91ca93c5f38ec5d797",
         "type": "github"
       },
       "original": {
         "owner": "input-output-hk",
-        "ref": "@cardano-sdk/cardano-services@0.33.3",
+        "ref": "@cardano-sdk/cardano-services@0.33.5",
         "repo": "cardano-js-sdk",
         "type": "github"
       }
@@ -205,7 +205,6 @@
     "ogmios": {
       "flake": false,
       "locked": {
-        "allRefs": true,
         "lastModified": 1731081092,
         "narHash": "sha256-MyZ/FIiKqe1tGMFpzTN7CW8rOqCcMF/bO9cryZEVzVU=",
         "ref": "refs/tags/v6.9.0",
@@ -216,7 +215,6 @@
         "url": "https://github.com/CardanoSolutions/ogmios.git"
       },
       "original": {
-        "allRefs": true,
         "ref": "refs/tags/v6.9.0",
         "submodules": true,
         "type": "git",
