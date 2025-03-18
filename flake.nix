@@ -6,15 +6,15 @@
     flake-compat.url = "github:input-output-hk/flake-compat";
     flake-compat.flake = false;
 
-    cardano-node.url = "github:IntersectMBO/cardano-node/10.1.2";
+    cardano-node.url = "github:IntersectMBO/cardano-node/10.1.4";
     cardano-node.flake = false; # prevent lockfile explosion
 
-    cardano-js-sdk.url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.35.1";
+    cardano-js-sdk.url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.35.10";
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
 
     ogmios = {
       url = "https://github.com/CardanoSolutions/ogmios.git";
-      ref = "refs/tags/v6.9.0";
+      ref = "refs/tags/v6.11.2";
       type = "git";
       submodules = true;
       flake = false;
