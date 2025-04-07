@@ -1,0 +1,14 @@
+{
+  "name": "desktop-full-node-backend",
+  "version": "0.1.0",
+  "description": "Full-node headless wallet backend with standardized API.",
+  "license": "Apache-2.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "shelljs": "^0.8.5"
+  }
+}

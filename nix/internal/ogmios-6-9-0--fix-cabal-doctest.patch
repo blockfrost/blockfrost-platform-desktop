@@ -1,0 +1,13 @@
+diff --git a/server/cabal.project b/server/cabal.project
+index 5525bd5ac..3d27ee040 100644
+--- a/server/cabal.project
++++ b/server/cabal.project
+@@ -30,6 +30,8 @@ constraints:
+   , any.formatting == 7.2.0
+   , any.text source
+ 
++  , any.cabal-doctest == 1.0.11
++
+ allow-newer:
+   *:formatting
+   , katip:Win32

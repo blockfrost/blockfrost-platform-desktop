@@ -1,0 +1,100 @@
+diff --git a/systray_darwin.m b/systray_darwin.m
+index 884fa43..035ba9d 100644
+--- a/systray_darwin.m
++++ b/systray_darwin.m
+@@ -13,7 +13,7 @@
+ 
+ #endif
+ 
+-@interface MenuItem : NSObject
++@interface GetlanternSystrayMenuItem : NSObject
+ {
+   @public
+     NSNumber* menuId;
+@@ -30,7 +30,7 @@ withParentMenuId: (int)theParentMenuId
+     withDisabled: (short)theDisabled
+      withChecked: (short)theChecked;
+      @end
+-     @implementation MenuItem
++     @implementation GetlanternSystrayMenuItem
+      -(id) initWithId: (int)theMenuId
+      withParentMenuId: (int)theParentMenuId
+             withTitle: (const char*)theTitle
+@@ -50,13 +50,13 @@ withParentMenuId: (int)theParentMenuId
+ }
+ @end
+ 
+-@interface AppDelegate: NSObject <NSApplicationDelegate>
+-  - (void) add_or_update_menu_item:(MenuItem*) item;
++@interface GetlanternSystray: NSObject
++  - (void) add_or_update_menu_item:(GetlanternSystrayMenuItem*) item;
+   - (IBAction)menuHandler:(id)sender;
+   @property (assign) IBOutlet NSWindow *window;
+   @end
+ 
+-  @implementation AppDelegate
++  @implementation GetlanternSystray
+ {
+   NSStatusItem *statusItem;
+   NSMenu *menu;
+@@ -65,7 +65,7 @@ withParentMenuId: (int)theParentMenuId
+ 
+ @synthesize window = _window;
+ 
+-- (void)applicationDidFinishLaunching:(NSNotification *)aNotification
++- (void)doRegister
+ {
+   self->statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
+   self->menu = [[NSMenu alloc] init];
+@@ -112,7 +112,7 @@ withParentMenuId: (int)theParentMenuId
+   systray_menu_item_selected(menuId.intValue);
+ }
+ 
+-- (void)add_or_update_menu_item:(MenuItem *)item {
++- (void)add_or_update_menu_item:(GetlanternSystrayMenuItem *)item {
+   NSMenu *theMenu = self->menu;
+   NSMenuItem *parentItem;
+   if ([item->parentMenuId integerValue] > 0) {
+@@ -210,26 +210,21 @@ NSMenuItem *find_menu_item(NSMenu *ourMenu, NSNumber *menuId) {
+ 
+ @end
+ 
++GetlanternSystray *globalGetlanternSystray;
++
++void runInMainThread(SEL method, id object);
++
+ void registerSystray(void) {
+-  AppDelegate *delegate = [[AppDelegate alloc] init];
+-  [[NSApplication sharedApplication] setDelegate:delegate];
+-  // A workaround to avoid crashing on macOS versions before Catalina. Somehow
+-  // SIGSEGV would happen inside AppKit if [NSApp run] is called from a
+-  // different function, even if that function is called right after this.
+-  if (floor(NSAppKitVersionNumber) <= /*NSAppKitVersionNumber10_14*/ 1671){
+-    [NSApp run];
+-  }
++  globalGetlanternSystray = [[GetlanternSystray alloc] init];
++  runInMainThread(@selector(doRegister), nil);
+ }
+ 
+ int nativeLoop(void) {
+-  if (floor(NSAppKitVersionNumber) > /*NSAppKitVersionNumber10_14*/ 1671){
+-    [NSApp run];
+-  }
+   return EXIT_SUCCESS;
+ }
+ 
+ void runInMainThread(SEL method, id object) {
+-  [(AppDelegate*)[NSApp delegate]
++  [globalGetlanternSystray
+     performSelectorOnMainThread:method
+                      withObject:object
+                   waitUntilDone: YES];
+@@ -267,7 +262,7 @@ void setTooltip(char* ctooltip) {
+ }
+ 
+ void add_or_update_menu_item(int menuId, int parentMenuId, char* title, char* tooltip, short disabled, short checked, short isCheckable) {
+-  MenuItem* item = [[MenuItem alloc] initWithId: menuId withParentMenuId: parentMenuId withTitle: title withTooltip: tooltip withDisabled: disabled withChecked: checked];
++  GetlanternSystrayMenuItem* item = [[GetlanternSystrayMenuItem alloc] initWithId: menuId withParentMenuId: parentMenuId withTitle: title withTooltip: tooltip withDisabled: disabled withChecked: checked];
+   free(title);
+   free(tooltip);
+   runInMainThread(@selector(add_or_update_menu_item:), (id)item);
