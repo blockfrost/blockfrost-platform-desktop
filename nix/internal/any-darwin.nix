@@ -9,7 +9,7 @@ in rec {
   common = import ./common.nix { inherit inputs targetSystem; };
   package = blockchain-services;
   installer = dmgImage;
-  inherit (common) cardano-node ogmios cardano-submit-api;
+  inherit (common) cardano-node ogmios cardano-submit-api blockfrost-platform;
 
   cardano-js-sdk = rec {
     patchedSrc = pkgs.runCommand "cardano-js-sdk-patched" {} ''
@@ -275,12 +275,13 @@ in rec {
 
     ln -s ${cardano-node-bundle} "$app"/MacOS/cardano-node
 
-    ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} "$app"/MacOS/ogmios
+    ln -s ${blockfrost-platform                                              } "$app"/MacOS/blockfrost-platform
+    # ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} "$app"/MacOS/ogmios
     ln -s ${mkBundle { "mithril-client" = lib.getExe mithril-client;        }} "$app"/MacOS/mithril-client
-    ln -s ${mkBundle { "node"           = lib.getExe cardano-js-sdk.ourPackage.nodejs; }} "$app"/MacOS/nodejs
-    ln -s ${postgresBundle                                                   } "$app"/MacOS/postgres
+    # ln -s ${mkBundle { "node"           = lib.getExe cardano-js-sdk.ourPackage.nodejs; }} "$app"/MacOS/nodejs
+    # ln -s ${postgresBundle                                                   } "$app"/MacOS/postgres
 
-    ln -s ${cardano-js-sdk.ourPackage} "$app"/Resources/cardano-js-sdk
+    # ln -s ${cardano-js-sdk.ourPackage} "$app"/Resources/cardano-js-sdk
     ln -s ${common.networkConfigs} "$app"/Resources/cardano-node-config
     ln -s ${common.swagger-ui} "$app"/Resources/swagger-ui
     ln -s ${ui.dist} "$app"/Resources/ui

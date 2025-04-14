@@ -9,7 +9,7 @@ in rec {
   common = import ./common.nix { inherit inputs targetSystem; };
   package = blockchain-services;
   installer = unsignedInstaller;
-  inherit (common) cardano-node ogmios cardano-submit-api;
+  inherit (common) cardano-node ogmios cardano-submit-api blockfrost-platform;
 
   patchedGo = pkgs.go.overrideAttrs (drv: {
     patches = (drv.patches or []) ++ [
@@ -201,11 +201,14 @@ in rec {
     mkdir -p $out/libexec/mithril-client
     cp -L ${mithril-client}/*.{exe,dll} $out/libexec/mithril-client/
 
-    mkdir -p $out/libexec/ogmios
-    cp -L ${ogmios}/bin/*.{exe,dll} $out/libexec/ogmios/
+    mkdir -p $out/libexec/blockfrost-platform
+    cp -L ${blockfrost-platform}/*.{exe,dll} $out/libexec/blockfrost-platform/
 
-    mkdir -p $out/libexec/nodejs
-    cp -L ${cardano-js-sdk.target.nodejs}/node.exe $out/libexec/nodejs/
+    # mkdir -p $out/libexec/ogmios
+    # cp -L ${ogmios}/bin/*.{exe,dll} $out/libexec/ogmios/
+
+    # mkdir -p $out/libexec/nodejs
+    # cp -L ${cardano-js-sdk.target.nodejs}/node.exe $out/libexec/nodejs/
 
     mkdir -p $out/libexec/cardano-node
     cp -Lf ${cardano-node}/bin/*.{exe,dll} $out/libexec/cardano-node/
@@ -217,8 +220,8 @@ in rec {
     mkdir -p $out/libexec/mksymlink
     cp -Lf ${mksymlink}/*.exe $out/libexec/mksymlink/
 
-    mkdir -p $out/libexec/postgres
-    cp -Lr ${postgresUnpacked}/{bin,lib,share,*license*.txt} $out/libexec/postgres/
+    # mkdir -p $out/libexec/postgres
+    # cp -Lr ${postgresUnpacked}/{bin,lib,share,*license*.txt} $out/libexec/postgres/
 
     mkdir -p $out/libexec/ourwebview2/
     cp -Lr ${WebView2}/. $out/libexec/webview2/

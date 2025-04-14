@@ -12,7 +12,7 @@ in rec {
 
   installer = selfExtractingArchive;
 
-  inherit (common) cardano-node ogmios cardano-submit-api;
+  inherit (common) cardano-node ogmios cardano-submit-api blockfrost-platform;
 
   cardano-js-sdk = (common.flake-compat {
     src = inputs.cardano-js-sdk;
@@ -226,14 +226,15 @@ in rec {
     mkdir -p $out/libexec
     ln -s ${mkBundle { "cardano-node"   = lib.getExe cardano-node;
                        "cardano-submit-api" = lib.getExe cardano-submit-api;}} $out/libexec/cardano-node
-    ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} $out/libexec/ogmios
+    ln -s ${blockfrost-platform                                              } $out/libexec/blockfrost-platform
+    # ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} $out/libexec/ogmios
     ln -s ${mkBundle { "mithril-client" = lib.getExe mithril-client;        }} $out/libexec/mithril-client
-    ln -s ${mkBundle { "node"           = lib.getExe nodejs-no-snapshot;    }} $out/libexec/nodejs
+    # ln -s ${mkBundle { "node"           = lib.getExe nodejs-no-snapshot;    }} $out/libexec/nodejs
     ln -s ${mkBundle { "clip"           = lib.getExe pkgs.xclip;            }} $out/libexec/xclip
-    ln -s ${postgresBundle                                                   } $out/libexec/postgres
+    # ln -s ${postgresBundle                                                   } $out/libexec/postgres
 
     mkdir -p $out/share
-    ln -s ${cardano-js-sdk}/libexec/incl $out/share/cardano-js-sdk
+    # ln -s ${cardano-js-sdk}/libexec/incl $out/share/cardano-js-sdk
     ln -s ${pkgs.xkeyboard_config}/share/X11/xkb $out/share/xkb
     ln -s ${common.networkConfigs} $out/share/cardano-node-config
     ln -s ${common.swagger-ui} $out/share/swagger-ui

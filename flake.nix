@@ -12,6 +12,11 @@
     cardano-js-sdk.url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.35.10";
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
 
+    blockfrost-platform = {
+      url = "github:blockfrost/blockfrost-platform/0.0.2";
+      flake = false; # to prevent lockfile explosion
+    };
+
     ogmios = {
       url = "https://github.com/CardanoSolutions/ogmios.git";
       ref = "refs/tags/v6.11.2";

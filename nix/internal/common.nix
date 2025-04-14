@@ -27,6 +27,8 @@ in rec {
 
   cardanoNodeFlake = (flake-compat { src = inputs.cardano-node; }).defaultNix;
 
+  blockfrostPlatformFlake = (flake-compat { src = inputs.blockfrost-platform; }).defaultNix;
+
   ogmiosPatched = {
     outPath = toString (pkgs.runCommand "ogmios-patched" {} ''
       cp -r ${inputs.ogmios} $out
@@ -69,6 +71,11 @@ in rec {
     aarch64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
   }.${targetSystem};
 
+  blockfrost-platform =
+    blockfrostPlatformFlake.internal.${targetSystem}.bundle // {
+      inherit (blockfrostPlatformFlake.internal.${targetSystem}.package) version;
+    };
+
   cardano-node = {
     x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-node;
     x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-node;
@@ -105,6 +112,8 @@ in rec {
       BlockchainServicesRevision = ${__toJSON (inputs.self.rev or "dirty")}
       CardanoNodeVersion = ${__toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
       CardanoNodeRevision = ${__toJSON inputs.cardano-node.rev}
+      BlockfrostPlatformVersion = ${__toJSON blockfrost-platform.version}
+      BlockfrostPlatformRevision = ${__toJSON inputs.blockfrost-platform.rev}
       OgmiosVersion = ${__toJSON ogmios.version}
       OgmiosRevision = ${__toJSON inputs.ogmios.rev}
       PostgresVersion = ${__toJSON postgresPackage.version}
