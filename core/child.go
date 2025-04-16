@@ -136,7 +136,7 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 		if !runMithril {
 			usedChildren = append(usedChildren, childCardanoNode)
 			// usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
-			usedChildren = append(usedChildren, childBlockfrostPlatform)
+			usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
 			// usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))
 			// usedChildren = append(usedChildren, childPostgres)
 			if cardanoServicesAvailable {

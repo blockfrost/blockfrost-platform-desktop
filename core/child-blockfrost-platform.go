@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"path/filepath"
 	"time"
+	"strconv"
+	"regexp"
 
 	"iog.io/blockchain-services/constants"
 	"iog.io/blockchain-services/ourpaths"
 )
 
-func childBlockfrostPlatform(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {
+func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, chan<- StatusAndUrl) ManagedChild { return func(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {
 	sep := string(filepath.Separator)
+
+	reSyncProgress := regexp.MustCompile(`"sync_progress"\s*:\s*(\d*\.\d+)`)
 
 	return ManagedChild{
 		ServiceName: "blockfrost-platform",
@@ -35,7 +39,7 @@ func childBlockfrostPlatform(shared SharedState, statusCh chan<- StatusAndUrl) M
 		StatusCh: statusCh,
 		HealthProbe: func(prev HealthStatus) HealthStatus {
 			blockfrostPlatformUrl := fmt.Sprintf("http://127.0.0.1:%d", *shared.BlockfrostPlatformPort)
-			err := probeHttpFor([]int{ 200, 202 }, blockfrostPlatformUrl + "/", 1 * time.Second)
+			body, err := probeHttpWithBodyFor([]int{ 200 }, blockfrostPlatformUrl + "/", 1 * time.Second, true)
 			nextProbeIn := 1 * time.Second
 			if (err == nil) {
 				statusCh <- StatusAndUrl {
@@ -46,7 +50,15 @@ func childBlockfrostPlatform(shared SharedState, statusCh chan<- StatusAndUrl) M
 					Url: blockfrostPlatformUrl,
 					OmitUrl: false,
 				}
-				nextProbeIn = 60 * time.Second
+
+				if ms := reSyncProgress.FindStringSubmatch(body); len(ms) > 0 {
+					num, err := strconv.ParseFloat(ms[1], 64)
+					if err == nil {
+						syncProgressCh <- num / 100.0
+					}
+				}
+
+				nextProbeIn = 10 * time.Second
 			}
 			return HealthStatus {
 				Initialized: err == nil,
@@ -61,4 +73,4 @@ func childBlockfrostPlatform(shared SharedState, statusCh chan<- StatusAndUrl) M
 		ForceKillAfter: 5 * time.Second,
 		PostStop: func() error { return nil },
 	}
-}
+}}
