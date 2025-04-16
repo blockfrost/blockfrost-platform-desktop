@@ -230,7 +230,7 @@ in rec {
     cp -Lr ${common.swagger-ui} $out/swagger-ui
     cp -Lr ${ui.dist} $out/ui
     ${if !withJS then "" else ''
-      cp -Lr ${cardano-js-sdk.ourPackage} $out/cardano-js-sdk
+      # cp -Lr ${cardano-js-sdk.ourPackage} $out/cardano-js-sdk
     ''}
   '';
 
