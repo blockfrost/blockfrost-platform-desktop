@@ -310,6 +310,7 @@ func SetupTray(
 		}
 	}()
 
+	/*
 	mOgmiosDashboard := systray.AddMenuItem("Ogmios Dashboard", "")
 	go func() {
 		url := ""
@@ -326,6 +327,7 @@ func SetupTray(
 			}
 		}}
 	}()
+	*/
 
 	systray.AddSeparator()
 
