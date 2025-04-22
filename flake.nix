@@ -13,7 +13,7 @@
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
 
     blockfrost-platform = {
-      url = "github:blockfrost/blockfrost-platform/0.0.2";
+      url = "github:blockfrost/blockfrost-platform/pull/296/head"; # fetch `/addresses/{addr}/utxos` from the ledger state
       flake = false; # to prevent lockfile explosion
     };
 
