@@ -8,7 +8,7 @@ in rec {
 
   flake-compat = import inputs.flake-compat;
 
-  prettyName = "Blockchain Services";
+  prettyName = "Blockfrost Platform Desktop";
 
   ourVersion = "0.1.0";
 
@@ -104,14 +104,14 @@ in rec {
     }) // { inherit version; };
   }.${targetSystem};
 
-  blockchain-services-exe-vendorHash = "sha256-3mz58RaOQvbZbTMCDwXTmIWUqMqpPlzy8222kvm9SOU=";
+  blockfrost-platform-desktop-exe-vendorHash = "sha256-3mz58RaOQvbZbTMCDwXTmIWUqMqpPlzy8222kvm9SOU=";
 
   go-constants = pkgs.writeTextDir "constants/constants.go" ''
     package constants
 
     const (
-      BlockchainServicesVersion = ${__toJSON ourVersion}
-      BlockchainServicesRevision = ${__toJSON (inputs.self.rev or "dirty")}
+      BlockfrostPlatformDesktopVersion = ${__toJSON ourVersion}
+      BlockfrostPlatformDesktopRevision = ${__toJSON (inputs.self.rev or "dirty")}
       CardanoNodeVersion = ${__toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
       CardanoNodeRevision = ${__toJSON inputs.cardano-node.rev}
       BlockfrostPlatformOnly = ${__toJSON blockfrostPlatformOnly}

@@ -11,11 +11,11 @@ import (
 	"bytes"
 	"strconv"
 
-	t "iog.io/blockchain-services/types"
-	"iog.io/blockchain-services/ourpaths" // has to be imported before clipboard.init()
-	"iog.io/blockchain-services/assets"
-	"iog.io/blockchain-services/appconfig"
-	"iog.io/blockchain-services/mainthread"
+	t "blockfrost.io/blockfrost-platform-desktop/types"
+	"blockfrost.io/blockfrost-platform-desktop/ourpaths" // has to be imported before clipboard.init()
+	"blockfrost.io/blockfrost-platform-desktop/assets"
+	"blockfrost.io/blockfrost-platform-desktop/appconfig"
+	"blockfrost.io/blockfrost-platform-desktop/mainthread"
 
 	"github.com/getlantern/systray"
 	"github.com/atotto/clipboard"
