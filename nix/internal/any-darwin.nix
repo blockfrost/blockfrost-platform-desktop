@@ -276,12 +276,15 @@ in rec {
     ln -s ${cardano-node-bundle} "$app"/MacOS/cardano-node
 
     ln -s ${blockfrost-platform                                             }/libexec "$app"/MacOS/blockfrost-platform
-    # ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} "$app"/MacOS/ogmios
     ln -s ${mkBundle { "mithril-client" = lib.getExe mithril-client;        }} "$app"/MacOS/mithril-client
-    # ln -s ${mkBundle { "node"           = lib.getExe cardano-js-sdk.ourPackage.nodejs; }} "$app"/MacOS/nodejs
-    # ln -s ${postgresBundle                                                   } "$app"/MacOS/postgres
 
-    # ln -s ${cardano-js-sdk.ourPackage} "$app"/Resources/cardano-js-sdk
+    ${lib.optionalString (!common.blockfrostPlatformOnly) ''
+      ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} "$app"/MacOS/ogmios
+      ln -s ${mkBundle { "node"           = lib.getExe cardano-js-sdk.ourPackage.nodejs; }} "$app"/MacOS/nodejs
+      ln -s ${postgresBundle                                                   } "$app"/MacOS/postgres
+      ln -s ${cardano-js-sdk.ourPackage} "$app"/Resources/cardano-js-sdk
+    ''}
+
     ln -s ${common.networkConfigs} "$app"/Resources/cardano-node-config
     ln -s ${common.swagger-ui} "$app"/Resources/swagger-ui
     ln -s ${ui.dist} "$app"/Resources/ui

@@ -12,6 +12,8 @@ in rec {
 
   ourVersion = "0.1.0";
 
+  blockfrostPlatformOnly = true;
+
   # These are configs of ‘cardano-node’ for all networks we make available from the UI.
   # The patching of the official networks needs to happen to:
   #   • turn off ‘EnableP2P’ (and modify topology accordingly), because it doesn’t work on Windows,
@@ -112,6 +114,7 @@ in rec {
       BlockchainServicesRevision = ${__toJSON (inputs.self.rev or "dirty")}
       CardanoNodeVersion = ${__toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
       CardanoNodeRevision = ${__toJSON inputs.cardano-node.rev}
+      BlockfrostPlatformOnly = ${__toJSON blockfrostPlatformOnly}
       BlockfrostPlatformVersion = ${__toJSON blockfrost-platform.version}
       BlockfrostPlatformRevision = ${__toJSON inputs.blockfrost-platform.rev}
       OgmiosVersion = ${__toJSON ogmios.version}

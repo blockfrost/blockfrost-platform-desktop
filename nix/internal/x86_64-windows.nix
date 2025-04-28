@@ -204,11 +204,20 @@ in rec {
     mkdir -p $out/libexec/blockfrost-platform
     cp -L ${blockfrost-platform}/*.{exe,dll} $out/libexec/blockfrost-platform/
 
-    # mkdir -p $out/libexec/ogmios
-    # cp -L ${ogmios}/bin/*.{exe,dll} $out/libexec/ogmios/
+    ${lib.optionalString (!common.blockfrostPlatformOnly) ''
+      mkdir -p $out/libexec/ogmios
+      cp -L ${ogmios}/bin/*.{exe,dll} $out/libexec/ogmios/
 
-    # mkdir -p $out/libexec/nodejs
-    # cp -L ${cardano-js-sdk.target.nodejs}/node.exe $out/libexec/nodejs/
+      mkdir -p $out/libexec/nodejs
+      cp -L ${cardano-js-sdk.target.nodejs}/node.exe $out/libexec/nodejs/
+
+      mkdir -p $out/libexec/postgres
+      cp -Lr ${postgresUnpacked}/{bin,lib,share,*license*.txt} $out/libexec/postgres/
+
+      ${if !withJS then "" else ''
+        cp -Lr ${cardano-js-sdk.ourPackage} $out/cardano-js-sdk
+      ''}
+    ''}
 
     mkdir -p $out/libexec/cardano-node
     cp -Lf ${cardano-node}/bin/*.{exe,dll} $out/libexec/cardano-node/
@@ -220,18 +229,12 @@ in rec {
     mkdir -p $out/libexec/mksymlink
     cp -Lf ${mksymlink}/*.exe $out/libexec/mksymlink/
 
-    # mkdir -p $out/libexec/postgres
-    # cp -Lr ${postgresUnpacked}/{bin,lib,share,*license*.txt} $out/libexec/postgres/
-
     mkdir -p $out/libexec/ourwebview2/
     cp -Lr ${WebView2}/. $out/libexec/webview2/
 
     cp -Lr ${common.networkConfigs} $out/cardano-node-config
     cp -Lr ${common.swagger-ui} $out/swagger-ui
     cp -Lr ${ui.dist} $out/ui
-    ${if !withJS then "" else ''
-      # cp -Lr ${cardano-js-sdk.ourPackage} $out/cardano-js-sdk
-    ''}
   '';
 
   blockchain-services-zip = mkArchive { withJS = true; };

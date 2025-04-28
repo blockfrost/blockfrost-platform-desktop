@@ -15,6 +15,7 @@ import (
 	t "iog.io/blockchain-services/types"
 	"iog.io/blockchain-services/ourpaths"
 	"iog.io/blockchain-services/appconfig"
+	"iog.io/blockchain-services/constants"
 
 	"github.com/creack/pty"
 	"github.com/acarl005/stripansi"
@@ -135,13 +136,15 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 
 		if !runMithril {
 			usedChildren = append(usedChildren, childCardanoNode)
-			// usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
 			usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
-			// usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))
-			// usedChildren = append(usedChildren, childPostgres)
-			if cardanoServicesAvailable {
-				// usedChildren = append(usedChildren, childProviderServer)
-				// usedChildren = append(usedChildren, childProjector)
+			if !constants.BlockfrostPlatformOnly {
+				usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
+				usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))
+				usedChildren = append(usedChildren, childPostgres)
+				if cardanoServicesAvailable {
+					usedChildren = append(usedChildren, childProviderServer)
+					usedChildren = append(usedChildren, childProjector)
+				}
 			}
 		} else {
 			usedChildren = append(usedChildren, childMithril(appConfig))

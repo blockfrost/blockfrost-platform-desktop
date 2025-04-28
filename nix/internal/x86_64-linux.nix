@@ -223,18 +223,21 @@ in rec {
     ''} $out/libexec/blockchain-services/blockchain-services
     ln -s $out/libexec/blockchain-services/* $out/bin/
 
-    mkdir -p $out/libexec
+    mkdir -p $out/{libexec,share}
     ln -s ${mkBundle { "cardano-node"   = lib.getExe cardano-node;
                        "cardano-submit-api" = lib.getExe cardano-submit-api;}} $out/libexec/cardano-node
     ln -s ${blockfrost-platform                                              } $out/libexec/blockfrost-platform
-    # ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} $out/libexec/ogmios
     ln -s ${mkBundle { "mithril-client" = lib.getExe mithril-client;        }} $out/libexec/mithril-client
-    # ln -s ${mkBundle { "node"           = lib.getExe nodejs-no-snapshot;    }} $out/libexec/nodejs
     ln -s ${mkBundle { "clip"           = lib.getExe pkgs.xclip;            }} $out/libexec/xclip
-    # ln -s ${postgresBundle                                                   } $out/libexec/postgres
 
-    mkdir -p $out/share
-    # ln -s ${cardano-js-sdk}/libexec/incl $out/share/cardano-js-sdk
+    ${lib.optionalString (!common.blockfrostPlatformOnly) ''
+      ln -s ${mkBundle { "ogmios"         = lib.getExe ogmios;                }} $out/libexec/ogmios
+      ln -s ${mkBundle { "node"           = lib.getExe nodejs-no-snapshot;    }} $out/libexec/nodejs
+      ln -s ${postgresBundle                                                   } $out/libexec/postgres
+
+      ln -s ${cardano-js-sdk}/libexec/incl $out/share/cardano-js-sdk
+    ''}
+
     ln -s ${pkgs.xkeyboard_config}/share/X11/xkb $out/share/xkb
     ln -s ${common.networkConfigs} $out/share/cardano-node-config
     ln -s ${common.swagger-ui} $out/share/swagger-ui
