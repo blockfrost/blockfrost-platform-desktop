@@ -251,6 +251,8 @@ in rec {
     mkdir -p $out
     cp -r --dereference ${unbundled}/libexec $out/
     chmod -R +w $out/libexec
+    # Fix the symlink after `--dereference` above:
+    ( cd $out/libexec/blockfrost-platform && rm blockfrost-platform && ln -s bin/blockfrost-platform ;  )
     cp -r --dereference ${webkit2Bundle} $out/libexec/webkit2
     rm -r $out/libexec/blockfrost-platform-desktop
     cp -r --dereference ${mkBundle {
