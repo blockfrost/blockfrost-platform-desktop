@@ -46,7 +46,7 @@ func childCardanoSubmitApi(appConfig appconfig.AppConfig) func(SharedState, chan
 		MkArgv: func() ([]string, error) {
 			*shared.CardanoSubmitApiPort = appConfig.CardanoSubmitApiPort // getFreeTCPPort()
 			rv := []string {
-				"--config", shared.CardanoSubmitApiConfigDir + sep + "config.json",
+				"--config", shared.CardanoNodeConfigDir + sep + "submit-api-config.json",
 				"--listen-address", "0.0.0.0",
 				"--port", fmt.Sprintf("%d", *shared.CardanoSubmitApiPort),
 				"--socket-path", shared.CardanoNodeSocket,
