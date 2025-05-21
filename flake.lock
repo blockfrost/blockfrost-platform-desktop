@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "blockfrost-platform": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1744196292,
+        "narHash": "sha256-cgkps4kALG3jPMqkCWrZhbrrbYVwuPwunbspAP7p+K0=",
+        "owner": "blockfrost",
+        "repo": "blockfrost-platform",
+        "rev": "2bfe64fcb4b1c87cba6e674fd6604da276eb7c17",
+        "type": "github"
+      },
+      "original": {
+        "owner": "blockfrost",
+        "ref": "pull/296/head",
+        "repo": "blockfrost-platform",
+        "type": "github"
+      }
+    },
     "cardano-js-sdk": {
       "flake": false,
       "locked": {
@@ -223,6 +240,7 @@
     },
     "root": {
       "inputs": {
+        "blockfrost-platform": "blockfrost-platform",
         "cardano-js-sdk": "cardano-js-sdk",
         "cardano-node": "cardano-node",
         "devshell": "devshell",
