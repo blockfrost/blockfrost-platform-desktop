@@ -59,7 +59,6 @@ type SharedState struct {
 	Network string
 	SyncProgress *float64  // XXX: we take that from Ogmios, we should probably calculate ourselves?
 	CardanoNodeConfigDir string
-	CardanoSubmitApiConfigDir string
 	CardanoNodeSocket string
 	CardanoSubmitApiPort *int
 	OgmiosPort *int
@@ -106,8 +105,7 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 		shared := SharedState{
 			Network: network,
 			SyncProgress: &[]float64{ -1.0 }[0],  // wat
-			CardanoNodeConfigDir: ourpaths.NetworkConfigDir + sep + network + sep + "cardano-node",
-			CardanoSubmitApiConfigDir: ourpaths.NetworkConfigDir + sep + network + sep + "cardano-submit-api",
+			CardanoNodeConfigDir: ourpaths.NetworkConfigDir + sep + network,
 			CardanoNodeSocket: ourpaths.WorkDir + sep + network + sep + "node.sock",
 			CardanoSubmitApiPort: new(int),
 			OgmiosPort: new(int),

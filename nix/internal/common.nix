@@ -14,18 +14,29 @@ in rec {
 
   blockfrostPlatformOnly = true;
 
-  # These are configs of ‘cardano-node’ for all networks we make available from the UI.
-  # The patching of the official networks needs to happen to:
-  #   • turn off ‘EnableP2P’ (and modify topology accordingly), because it doesn’t work on Windows,
-  #   • and turn off ‘hadPrometheus’, because it makes cardano-node hang on Windows during graceful exit.
-  networkConfigs = let
-    selectedNetworks = [ "mainnet" "preprod" "preview" ];
-  in pkgs.runCommand "network-configs" {
-    nativeBuildInputs = [ pkgs.jq ];
-  } (lib.concatMapStringsSep "\n" (network: ''
-    mkdir -p $out/${network}
-    cp -r ${inputs.cardano-js-sdk}/packages/cardano-services/config/network/${network}/. $out/${network}
-  '') selectedNetworks);
+  cardano-node-configs-verbose = builtins.path {
+    name = "cardano-playground-configs";
+    path = inputs.cardano-playground + "/static/book.play.dev.cardano.org/environments";
+  };
+
+  cardano-node-configs =
+    pkgs.runCommandNoCC "cardano-node-configs" {
+      buildInputs = with pkgs; [jq];
+    } ''
+      mkdir -p $out
+      cp -r ${cardano-node-configs-verbose}/{mainnet,preview,preprod} $out/
+      chmod -R +w $out
+      find $out -name 'config.json' | while IFS= read -r configFile ; do
+        jq '.
+          | .TraceConnectionManager = false
+          | .TracePeerSelection = false
+          | .TracePeerSelectionActions = false
+          | .TracePeerSelectionCounters = false
+          | .TraceInboundGovernor = false
+        ' "$configFile" >tmp.json
+        mv tmp.json "$configFile"
+      done
+    '';
 
   cardanoNodeFlake = (flake-compat { src = inputs.cardano-node; }).defaultNix;
 
