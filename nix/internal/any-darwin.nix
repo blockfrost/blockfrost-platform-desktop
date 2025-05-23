@@ -168,7 +168,7 @@ in rec {
   };
 
   blockfrost-platform-desktop-exe = pkgs.buildGoModule rec {
-    name = "blockfrost-platform-desktop";
+    name = common.codeName;
     src = common.coreSrc;
     vendorHash = common.blockfrost-platform-desktop-exe-vendorHash;
     buildInputs =
@@ -260,7 +260,7 @@ in rec {
     "cardano-submit-api" = lib.getExe cardano-submit-api;
   };
 
-  blockfrost-platform-desktop = pkgs.runCommand "blockfrost-platform-desktop" {
+  blockfrost-platform-desktop = pkgs.runCommand common.codeName {
     meta.mainProgram = blockfrost-platform-desktop-exe.name;
   } ''
     app=$out/Applications/${lib.escapeShellArg common.prettyName}.app/Contents
@@ -440,7 +440,7 @@ in rec {
       else "dirty";
   in pkgs.runCommand "blockfrost-platform-desktop-dmg" {} ''
     mkdir -p $out
-    target=$out/blockfrost-platform-desktop-${common.ourVersion}-${revShort}-${targetSystem}.dmg
+    target=$out/${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.dmg
 
     /usr/bin/hdiutil makehybrid -iso -joliet -o tmp.iso \
       ${blockfrost-platform-desktop-bundle}/Applications
@@ -679,7 +679,7 @@ in rec {
     '';
   in pkgs.runCommand "blockfrost-platform-desktop-dmg" {} ''
     mkdir -p $out
-    target=$out/blockfrost-platform-desktop-${common.ourVersion}-${revShort}-${targetSystem}.dmg
+    target=$out/${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.dmg
 
     ${dmgbuild}/bin/dmgbuild \
       -D app_path=${blockfrost-platform-desktop-bundle}/Applications/${lib.escapeShellArg common.prettyName}.app \
