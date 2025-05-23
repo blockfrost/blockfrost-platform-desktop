@@ -9,6 +9,7 @@ in rec {
   flake-compat = import inputs.flake-compat;
 
   prettyName = "Blockfrost Platform Desktop";
+  codeName = "blockfrost-platform-desktop";
 
   ourVersion = "0.1.0";
 
