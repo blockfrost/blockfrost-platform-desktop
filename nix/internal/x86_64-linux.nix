@@ -239,7 +239,7 @@ in rec {
     ''}
 
     ln -s ${pkgs.xkeyboard_config}/share/X11/xkb $out/share/xkb
-    ln -s ${common.networkConfigs} $out/share/cardano-node-config
+    ln -s ${common.cardano-node-configs} $out/share/cardano-node-config
     ln -s ${common.swagger-ui} $out/share/swagger-ui
     ln -s ${ui.dist} $out/share/ui
   '';

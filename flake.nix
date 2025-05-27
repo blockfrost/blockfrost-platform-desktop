@@ -6,8 +6,11 @@
     flake-compat.url = "github:input-output-hk/flake-compat";
     flake-compat.flake = false;
 
-    cardano-node.url = "github:IntersectMBO/cardano-node/10.1.4";
+    cardano-node.url = "github:IntersectMBO/cardano-node/10.3.1";
     cardano-node.flake = false; # prevent lockfile explosion
+
+    cardano-playground.url = "github:input-output-hk/cardano-playground/39ea4db0daa11d6334a55353f685e185765a619b";
+    cardano-playground.flake = false; # otherwise, +9k dependencies in flake.lock…
 
     cardano-js-sdk.url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.35.10";
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion

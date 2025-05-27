@@ -285,7 +285,7 @@ in rec {
       ln -s ${cardano-js-sdk.ourPackage} "$app"/Resources/cardano-js-sdk
     ''}
 
-    ln -s ${common.networkConfigs} "$app"/Resources/cardano-node-config
+    ln -s ${common.cardano-node-configs} "$app"/Resources/cardano-node-config
     ln -s ${common.swagger-ui} "$app"/Resources/swagger-ui
     ln -s ${ui.dist} "$app"/Resources/ui
 

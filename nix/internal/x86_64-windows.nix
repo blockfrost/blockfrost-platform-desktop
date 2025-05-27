@@ -232,7 +232,7 @@ in rec {
     mkdir -p $out/libexec/ourwebview2/
     cp -Lr ${WebView2}/. $out/libexec/webview2/
 
-    cp -Lr ${common.networkConfigs} $out/cardano-node-config
+    cp -Lr ${common.cardano-node-configs} $out/cardano-node-config
     cp -Lr ${common.swagger-ui} $out/swagger-ui
     cp -Lr ${ui.dist} $out/ui
   '';
