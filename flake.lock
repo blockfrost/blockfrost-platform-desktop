@@ -4,10 +4,10 @@
       "flake": false,
       "locked": {
         "lastModified": 1744196292,
-        "narHash": "sha256-cgkps4kALG3jPMqkCWrZhbrrbYVwuPwunbspAP7p+K0=",
+        "narHash": "sha256-YQi4CccKQs1STp2uJxAibnWOhnR6EaVgU3SmXxgi2hI=",
         "owner": "blockfrost",
         "repo": "blockfrost-platform",
-        "rev": "2bfe64fcb4b1c87cba6e674fd6604da276eb7c17",
+        "rev": "4cc0ad65ff1ef80b2490d9f040f1617668cb81fb",
         "type": "github"
       },
       "original": {
