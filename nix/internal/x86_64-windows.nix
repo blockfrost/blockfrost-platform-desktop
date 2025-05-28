@@ -9,6 +9,8 @@ in rec {
   common = import ./common.nix { inherit inputs targetSystem; };
   package = blockfrost-platform-desktop;
   installer = unsignedInstaller;
+  make-signed-installer = make-installer {doSign = true;};
+
   inherit (common) cardano-node ogmios cardano-submit-api blockfrost-platform;
 
   patchedGo = pkgs.go.overrideAttrs (drv: {
@@ -27,7 +29,7 @@ in rec {
     go = patchedGo;
     goModules = inputs.self.internal.x86_64-linux.blockfrost-platform-desktop-exe.goModules;
   in pkgs.pkgsCross.mingwW64.stdenv.mkDerivation {
-    name = "blockfrost-platform-desktop";
+    name = common.codeName;
     src = common.coreSrc;
     GOPROXY = "off";
     GOSUMDB = "off";
@@ -194,7 +196,7 @@ in rec {
 
   blockfrost-platform-desktop = mkPackage { withJS = true; };
 
-  mkPackage = { withJS }: pkgs.runCommand "blockfrost-platform-desktop" {} ''
+  mkPackage = { withJS }: pkgs.runCommand common.codeName {} ''
     mkdir -p $out/libexec
     cp -Lr ${blockfrost-platform-desktop-exe-with-icon}/* $out/
 
@@ -204,7 +206,12 @@ in rec {
     mkdir -p $out/libexec/blockfrost-platform
     cp -L ${blockfrost-platform}/*.{exe,dll} $out/libexec/blockfrost-platform/
 
+    mkdir -p $out/libexec/cardano-node
+    cp -Lf ${cardano-node}/bin/*.{exe,dll} $out/libexec/cardano-node/
+
     ${lib.optionalString (!common.blockfrostPlatformOnly) ''
+      cp -Lf ${cardano-submit-api}/bin/*.{exe,dll} $out/libexec/cardano-node/
+
       mkdir -p $out/libexec/ogmios
       cp -L ${ogmios}/bin/*.{exe,dll} $out/libexec/ogmios/
 
@@ -217,17 +224,13 @@ in rec {
       ${if !withJS then "" else ''
         cp -Lr ${cardano-js-sdk.ourPackage} $out/cardano-js-sdk
       ''}
-    ''}
 
-    mkdir -p $out/libexec/cardano-node
-    cp -Lf ${cardano-node}/bin/*.{exe,dll} $out/libexec/cardano-node/
-    cp -Lf ${cardano-submit-api}/bin/*.{exe,dll} $out/libexec/cardano-node/
+      mkdir -p $out/libexec/mksymlink
+      cp -Lf ${mksymlink}/*.exe $out/libexec/mksymlink/
+    ''}
 
     mkdir -p $out/libexec/sigbreak
     cp -Lf ${sigbreak}/*.exe $out/libexec/sigbreak/
-
-    mkdir -p $out/libexec/mksymlink
-    cp -Lf ${mksymlink}/*.exe $out/libexec/mksymlink/
 
     mkdir -p $out/libexec/ourwebview2/
     cp -Lr ${WebView2}/. $out/libexec/webview2/
@@ -243,15 +246,15 @@ in rec {
   # if you want to just iteratively test the process manager:
   blockfrost-platform-desktop-zip-nojs = mkArchive { withJS = false; };
 
+  revShort =
+    if inputs.self ? shortRev
+    then builtins.substring 0 9 inputs.self.rev
+    else "dirty";
+
   # For easier testing, skipping the installer (for now):
-  mkArchive = { withJS }: let
-    revShort =
-      if inputs.self ? shortRev
-      then builtins.substring 0 9 inputs.self.rev
-      else "dirty";
-  in pkgs.runCommand "blockfrost-platform-desktop.7z" {} ''
+  mkArchive = { withJS }: pkgs.runCommand "blockfrost-platform-desktop.7z" {} ''
     mkdir -p $out
-    target=$out/blockfrost-platform-desktop-${common.ourVersion}-${revShort}-${targetSystem}.7z
+    target=$out/${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.7z
 
     ln -s ${mkPackage { inherit withJS; }} blockfrost-platform-desktop
     ${with pkgs; lib.getExe p7zip} a -r -l $target blockfrost-platform-desktop
@@ -308,81 +311,102 @@ in rec {
     noConsole = true;
   };
 
-  make-windows-installer = let
-    project = common.cardanoNodeFlake.legacyPackages.x86_64-linux.haskell-nix.project {
-      compiler-nix-name = "ghc8107";
-      projectFileName = "cabal.project";
-      src = ./make-windows-installer;
+  unsignedInstaller = pkgs.stdenv.mkDerivation {
+    name = "unsigned-installer";
+    dontUnpack = true;
+    buildPhase = ''
+      ${make-installer {doSign = false;}}/bin/* | tee make-installer.log
+    '';
+    installPhase = ''
+      mkdir -p $out
+      cp $(tail -n 1 make-installer.log) $out/
+
+      # Make it downloadable from Hydra:
+      mkdir -p $out/nix-support
+      echo "file binary-dist \"$(echo $out/*.exe)\"" >$out/nix-support/hydra-build-products
+    '';
+  };
+
+  make-installer = {doSign ? false}: let
+    outFileName = "${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.exe";
+    installer-nsi =
+      pkgs.runCommandNoCC "installer.nsi" {
+        inherit outFileName;
+        projectName = common.prettyName;
+        projectCodeName = common.codeName;
+        projectVersion = common.ourVersion;
+        installerIconPath = "icon.ico";
+        lockfileName = "instance.lock";
+      } ''
+        substituteAll ${./windows-installer.nsi} $out
+      '';
+  in
+    pkgs.writeShellApplication {
+      name = "pack-and-sign";
+      runtimeInputs = with pkgs; [bash coreutils nsis];
+      runtimeEnv = {
+        inherit outFileName;
+      };
+      text = ''
+        set -euo pipefail
+        workDir=$(mktemp -d)
+        cd "$workDir"
+
+        ${
+          if doSign
+          then ''
+            sign_cmd() {
+              echo "Signing: ‘$1’…"
+              ssh HSM <"$1" >"$1".signed
+              mv "$1".signed "$1"
+            }
+          ''
+          else ''
+            sign_cmd() {
+              echo "Would sign: ‘$1’"
+            }
+          ''
+        }
+
+        cp ${installer-nsi} installer.nsi
+        cp -r ${mkPackage { withJS = true; }} contents
+        chmod -R +w contents
+        cp ${uninstaller}/uninstall.exe contents/
+        cp ${icon} icon.ico
+
+        chmod -R +w contents
+        find contents '(' -iname '*.exe' -o -iname '*.dll' ')' | sort | while IFS= read -r binary_to_sign ; do
+          sign_cmd "$binary_to_sign"
+        done
+
+        makensis installer.nsi -V4
+
+        sign_cmd "$outFileName"
+
+        echo
+        echo "Done, you can upload it to GitHub releases:"
+        echo "$workDir"/"$outFileName"
+      '';
     };
-  in project.make-windows-installer.components.exes.make-windows-installer;
+
+  uninstaller =
+    pkgs.runCommandNoCC "uninstaller" {
+      buildInputs = [nsis pkgs.wine];
+      projectName = common.prettyName;
+      projectCodeName = common.codeName;
+      projectVersion = common.ourVersion;
+      WINEDEBUG = "-all"; # comment out to get normal output (err,fixme), or set to +all for a flood
+    } ''
+      mkdir home
+      export HOME=$(realpath home)
+      substituteAll ${./windows-uninstaller.nsi} uninstaller.nsi
+      makensis uninstaller.nsi -V4
+      wine tempinstaller.exe /S
+      mkdir $out
+      mv $HOME/.wine/drive_c/uninstall.exe $out/uninstall.exe
+    '';
 
   nsis = import ./nsis.nix { nsisNixpkgs = inputs.nixpkgs-nsis; };
-
-  unsignedUninstaller = pkgs.runCommand "unsigned-uninstaller" {
-    buildInputs = [
-      make-windows-installer
-      pkgs.glibcLocales  # ← or else: commitBuffer: invalid argument (invalid character)
-      nsis
-      cardano-js-sdk.fresherPkgs.wineWowPackages.stableFull
-    ];
-  } ''
-    # ↓ or else: commitBuffer: invalid argument (invalid character)
-    export LANG=en_US.UTF-8
-
-    make-windows-installer \
-      --spaced-name ${lib.escapeShellArg common.prettyName} \
-      --install-dir ${lib.escapeShellArg common.prettyName} \
-      --full-version ${lib.escapeShellArg common.ourVersion} \
-      --out-name "installer.exe" \
-      --icon-path icon.ico \
-      --banner-bmp banner.bmp \
-      --lock-file '$APPDATA\blockfrost-platform-desktop\instance.lock' \
-      --shortcut-exe "blockfrost-platform-desktop.exe" \
-      --contents-dir 'contents\*' \
-      ${lib.escapeShellArgs (lib.concatMap (wspace: [
-        "--extra-exec"
-        ''"$INSTDIR\libexec\mksymlink\mksymlink.exe" "$INSTDIR\cardano-js-sdk\node_modules\@cardano-sdk\${wspace}" ..\..\packages\${wspace}''
-      ]) (__attrNames (__readDir (inputs.cardano-js-sdk + "/packages"))))}
-
-    makensis uninstaller.nsi -V4
-
-    mkdir home
-    export HOME="$(realpath ./home)"
-    export WINEDEBUG=-all  # comment out to get normal output (err,fixme), or set to +all for a flood
-    wine tempinstaller.exe /S
-
-    mkdir -p $out
-    cp -v installer.nsi $HOME/.wine/drive_c/uninstall.exe $out/
-  '';
-
-  unsignedInstaller = let
-    revShort =
-      if inputs.self ? shortRev
-      then builtins.substring 0 9 inputs.self.rev
-      else "dirty";
-  in pkgs.runCommand "unsigned-installer" {
-    buildInputs = [
-      pkgs.glibcLocales  # ← or else: commitBuffer: invalid argument (invalid character)
-      nsis
-    ];
-  } ''
-    cp ${unsignedUninstaller}/* ./
-    cp ${icon} icon.ico
-    cp ${./windows-nsis-banner.bmp} banner.bmp
-
-    ln -s ${mkPackage { withJS = true; }} contents
-
-    makensis installer.nsi -V4
-
-    mkdir -p $out
-    target=$out/blockfrost-platform-desktop-${common.ourVersion}-${revShort}-${targetSystem}.exe
-
-    mv installer.exe "$target"
-
-    # Make it downloadable from Hydra:
-    mkdir -p $out/nix-support
-    echo "file binary-dist \"$target\"" >$out/nix-support/hydra-build-products
-  '';
 
   resourceHacker = pkgs.fetchzip {
     name = "resource-hacker-5.1.7";

@@ -35,7 +35,7 @@ in {
   # FIXME: numtide/devshell doesn’t set proper stdenv, so `go build` doesn’t work:
 
   future = mkShell {
-    name = "desktop-full-node-backend";
+    name = "blockfrost-platform-desktop";
 
     imports = ["${inputs.devshell}/extra/language/c.nix"];
 
