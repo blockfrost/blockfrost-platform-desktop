@@ -27,7 +27,6 @@ func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, ch
 				"--solitary",
 				"--server-address", "127.0.0.1",
 				"--server-port", fmt.Sprintf("%d", *shared.BlockfrostPlatformPort),
-				"--network", shared.Network,
 				"--log-level", "info",
 				"--node-socket-path", shared.CardanoNodeSocket,
 				"--mode", "compact",
