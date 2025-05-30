@@ -149,6 +149,9 @@ in rec {
       MithrilGVKPreview = ${__toJSON mithrilGenesisVerificationKeys.preview}
       MithrilGVKPreprod = ${__toJSON mithrilGenesisVerificationKeys.preprod}
       MithrilGVKMainnet = ${__toJSON mithrilGenesisVerificationKeys.mainnet}
+      MithrilAVKPreview = ${__toJSON mithrilAncillaryVerificationKeys.preview}
+      MithrilAVKPreprod = ${__toJSON mithrilAncillaryVerificationKeys.preprod}
+      MithrilAVKMainnet = ${__toJSON mithrilAncillaryVerificationKeys.mainnet}
     )
   '';
 
@@ -205,6 +208,12 @@ in rec {
     preview = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/pre-release-preview/genesis.vkey");
     preprod = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/release-preprod/genesis.vkey");
     mainnet = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/release-mainnet/genesis.vkey");
+  };
+
+  mithrilAncillaryVerificationKeys = {
+    preview = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/pre-release-preview/ancillary.vkey");
+    preprod = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/release-preprod/ancillary.vkey");
+    mainnet = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/release-mainnet/ancillary.vkey");
   };
 
   # FIXME: build from source (Linux, and Darwins are available in their flake.nix, but Windows not)
