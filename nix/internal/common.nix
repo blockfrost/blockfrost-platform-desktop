@@ -224,7 +224,7 @@ in rec {
     x86_64-windows = pkgs.fetchurl {
       name = "mithril-${ver}-windows-x64.tar.gz";
       url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
-      hash = "sha256-XS9tgSu1wOsLFz4COlXgO7WEGKgFw+/LJFY4tW7AwEs=";
+      hash = "sha256-iJPCnFvZ9uY4OEpEtPPAtuXW3VWehuXh8R7XF0lYjbY=";
     };
     x86_64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
     aarch64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
