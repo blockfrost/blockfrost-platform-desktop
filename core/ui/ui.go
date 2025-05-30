@@ -331,7 +331,7 @@ func SetupTray(
 
 	systray.AddSeparator()
 
-	mResyncMithril := systray.AddMenuItem("Resync with Mithril", "")
+	mResyncMithril := systray.AddMenuItem("Fast Resync with Mithril", "")
 	go func() {
 		// Calculate these? How?
 		eta := map[string](string) {

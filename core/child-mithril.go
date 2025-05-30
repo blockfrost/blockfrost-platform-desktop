@@ -43,16 +43,19 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			"NETWORK=preview",
 			"AGGREGATOR_ENDPOINT=" + upstream["preview"],
 			"GENESIS_VERIFICATION_KEY=" + constants.MithrilGVKPreview,
+			"ANCILLARY_VERIFICATION_KEY=" + constants.MithrilAVKPreview,
 		},
 		"preprod": []string{
 			"NETWORK=preprod",
 			"AGGREGATOR_ENDPOINT=" + upstream["preprod"],
 			"GENESIS_VERIFICATION_KEY=" + constants.MithrilGVKPreprod,
+			"ANCILLARY_VERIFICATION_KEY=" + constants.MithrilAVKPreprod,
 		},
 		"mainnet": []string{
 			"NETWORK=mainnet",
 			"AGGREGATOR_ENDPOINT=" + upstream["mainnet"],
 			"GENESIS_VERIFICATION_KEY=" + constants.MithrilGVKMainnet,
+			"ANCILLARY_VERIFICATION_KEY=" + constants.MithrilAVKMainnet,
 		},
 	}
 
@@ -170,6 +173,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				"cardano-db",
 				"download",
 				snapshot,
+				"--include-ancillary",
 				"--download-dir",
 				downloadDir,
 			}, nil
