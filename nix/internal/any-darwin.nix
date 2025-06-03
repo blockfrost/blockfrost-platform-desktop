@@ -8,7 +8,7 @@ let
 in rec {
   common = import ./common.nix { inherit inputs targetSystem; };
   package = blockfrost-platform-desktop;
-  installer = dmgImage;
+  installer = unsigned-dmg;
   inherit (common) cardano-node ogmios cardano-submit-api blockfrost-platform;
 
   cardano-js-sdk = rec {
@@ -168,7 +168,7 @@ in rec {
   };
 
   blockfrost-platform-desktop-exe = pkgs.buildGoModule rec {
-    name = "blockfrost-platform-desktop";
+    name = common.codeName;
     src = common.coreSrc;
     vendorHash = common.blockfrost-platform-desktop-exe-vendorHash;
     buildInputs =
@@ -255,12 +255,13 @@ in rec {
 
   icons = svg2icns ./macos-app-icon.svg;
 
-  cardano-node-bundle = mkBundle {
+  cardano-node-bundle = mkBundle ({
     "cardano-node" = lib.getExe cardano-node;
+  } // lib.optionalAttrs (!common.blockfrostPlatformOnly) {
     "cardano-submit-api" = lib.getExe cardano-submit-api;
-  };
+  });
 
-  blockfrost-platform-desktop = pkgs.runCommand "blockfrost-platform-desktop" {
+  blockfrost-platform-desktop = pkgs.runCommand common.codeName {
     meta.mainProgram = blockfrost-platform-desktop-exe.name;
   } ''
     app=$out/Applications/${lib.escapeShellArg common.prettyName}.app/Contents
@@ -433,14 +434,9 @@ in rec {
   };
 
   # XXX: one can use hdiutil without super-user privileges to generate an ISO
-  dmgImage-ugly = let
-    revShort =
-      if inputs.self ? shortRev
-      then builtins.substring 0 9 inputs.self.rev
-      else "dirty";
-  in pkgs.runCommand "blockfrost-platform-desktop-dmg" {} ''
+  dmgImage-ugly = pkgs.runCommand "blockfrost-platform-desktop-dmg" {} ''
     mkdir -p $out
-    target=$out/blockfrost-platform-desktop-${common.ourVersion}-${revShort}-${targetSystem}.dmg
+    target=$out/${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.dmg
 
     /usr/bin/hdiutil makehybrid -iso -joliet -o tmp.iso \
       ${blockfrost-platform-desktop-bundle}/Applications
@@ -628,11 +624,36 @@ in rec {
     ${mkBadge} ${svg2icns ./macos-dmg-inset.svg} $out 0.5 0.420
   '';
 
-  dmgImage = let
-    revShort =
-      if inputs.self ? shortRev
-      then builtins.substring 0 9 inputs.self.rev
-      else "dirty";
+  revShort =
+    if inputs.self ? shortRev
+    then builtins.substring 0 9 inputs.self.rev
+    else "dirty";
+
+  # XXX: this needs to be `nix run` on `iog-mac-studio-arm-2-signing` or a similar machine.
+  # It can’t be a pure derivation because it needs to impurely access the Apple signing machinery.
+  make-signed-dmg = make-dmg {doSign = true;};
+
+  unsigned-dmg = pkgs.stdenv.mkDerivation {
+    name = "dmg-image";
+    dontUnpack = true;
+    buildPhase = ''
+      ${make-dmg {doSign = false;}}/bin/* | tee make-installer.log
+    '';
+    installPhase = ''
+      mkdir -p $out
+      cp $(tail -n 1 make-installer.log) $out/
+
+      # Make it downloadable from Hydra:
+      mkdir -p $out/nix-support
+      echo "file binary-dist \"$(echo $out/*.dmg)\"" >$out/nix-support/hydra-build-products
+    '';
+  };
+
+  make-dmg = {doSign ? false}: let
+    outFileName = "${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.dmg";
+    credentials = "/var/lib/buildkite-agent/signing.sh";
+    codeSigningConfig = "/var/lib/buildkite-agent/code-signing-config.json";
+    signingConfig = "/var/lib/buildkite-agent/signing-config.json";
     # See <https://dmgbuild.readthedocs.io/en/latest/settings.html>:
     settingsPy = let s = lib.escapeShellArg; in pkgs.writeText "settings.py" ''
       import os.path
@@ -677,20 +698,136 @@ in rec {
 
       # license = { … }
     '';
-  in pkgs.runCommand "blockfrost-platform-desktop-dmg" {} ''
-    mkdir -p $out
-    target=$out/blockfrost-platform-desktop-${common.ourVersion}-${revShort}-${targetSystem}.dmg
+    packAndSign = pkgs.writeShellApplication {
+      name = "pack-and-sign";
+      runtimeInputs = with pkgs; [bash coreutils jq];
+      text = ''
+        set -euo pipefail
 
-    ${dmgbuild}/bin/dmgbuild \
-      -D app_path=${blockfrost-platform-desktop-bundle}/Applications/${lib.escapeShellArg common.prettyName}.app \
-      -D icon_path=${badgeIcon} \
-      -s ${settingsPy} \
-      ${lib.escapeShellArg common.prettyName} $target
+        ${
+          if doSign
+          then ''
+            codeSigningIdentity=$(jq -r .codeSigningIdentity ${codeSigningConfig})
+            codeSigningKeyChain=$(jq -r .codeSigningKeyChain ${codeSigningConfig})
+            # unused: signingIdentity=$(jq -r .signingIdentity ${signingConfig})
+            # unused: signingKeyChain=$(jq -r .signingKeyChain ${signingConfig})
 
-    # Make it downloadable from Hydra:
-    mkdir -p $out/nix-support
-    echo "file binary-dist \"$target\"" >$out/nix-support/hydra-build-products
-  '';
+            echo "Checking if notarization credentials are defined..."
+            if [ -z "''${NOTARY_USER:-}" ] || [ -z "''${NOTARY_PASSWORD:-}" ] || [ -z "''${NOTARY_TEAM_ID:-}" ] ; then
+              echo >&2 "Fatal: please set \$NOTARY_USER, \$NOTARY_PASSWORD, and \$NOTARY_TEAM_ID"
+              exit 1
+            fi
+          ''
+          else ''
+            echo >&2 "Warning: the DMG will be unsigned"
+          ''
+        }
+
+        workDir=$(mktemp -d)
+        appName=${lib.escapeShellArg common.prettyName}.app
+        appDir=${blockfrost-platform-desktop-bundle}/Applications/${lib.escapeShellArg common.prettyName}.app
+
+        echo "Info: workDir = $workDir"
+        cd "$workDir"
+
+        echo "Copying..."
+        cp -r "$appDir" ./.
+        chmod -R +w .
+
+        bundlePath="$workDir/$appName"
+
+        ${
+          if doSign
+          then ''
+            echo
+            echo "Signing code..."
+
+            # Ensure the code signing identity is found and set the keychain search path:
+            security show-keychain-info "$codeSigningKeyChain"
+            security find-identity -v -p codesigning "$codeSigningKeyChain"
+            security list-keychains -d user -s "$codeSigningKeyChain"
+
+            # Sign the whole component deeply
+            codesign \
+              --force --verbose=4 --deep --strict --timestamp --options=runtime \
+              --entitlements ${./darwin-entitlements.xml} \
+              --sign "$codeSigningIdentity" \
+              "$bundlePath"
+
+            # Verify the signing
+            codesign --verbose=4 --verify --deep --strict "$bundlePath"
+            codesign --verbose=4 --verify --deep --strict --display -r- "$bundlePath"
+            codesign -d --entitlements :- "$bundlePath"
+          ''
+          else ""
+        }
+
+        echo
+        echo "Making the DMG..."
+        ${dmgbuild}/bin/dmgbuild \
+          -D app_path="$bundlePath" \
+          -D icon_path=${badgeIcon} \
+          -s ${settingsPy} \
+          ${lib.escapeShellArg common.prettyName} ${outFileName}
+
+        ${
+          if doSign
+          then ''
+            # FIXME: this doesn’t work outside of `buildkite-agent`, it seems:
+            #(
+            #  source ${credentials}
+            #  security unlock-keychain -p "$SIGNING" "$signingKeyChain"
+            #)
+
+            echo
+            echo "Signing the DMG..."
+            codesign \
+              --force --verbose=4 --timestamp --options=runtime \
+              --sign "$codeSigningIdentity" \
+              ${outFileName}
+
+            echo
+            echo "Submitting for notarization..."
+            xcrun notarytool submit \
+              --apple-id "$NOTARY_USER" \
+              --password "$NOTARY_PASSWORD" \
+              --team-id "$NOTARY_TEAM_ID" \
+              --wait ${outFileName}
+
+            echo
+            echo "Stapling the notarization ticket..."
+            xcrun stapler staple ${outFileName}
+          ''
+          else ""
+        }
+
+        echo
+        echo "Done, you can upload it to GitHub releases:"
+        echo "$workDir"/${outFileName}
+      '';
+    };
+  in
+    pkgs.writeShellApplication {
+      name = "make-dmg";
+      runtimeInputs = with pkgs; [bash coreutils jq];
+      text = ''
+        set -euo pipefail
+        cd /
+        ${
+          if doSign
+          then ''
+            exec sudo -u buildkite-agent \
+              "NOTARY_USER=''${NOTARY_USER:-}" \
+              "NOTARY_PASSWORD=''${NOTARY_PASSWORD:-}" \
+              "NOTARY_TEAM_ID=''${NOTARY_TEAM_ID:-}" \
+              ${lib.getExe packAndSign}
+          ''
+          else ''
+            exec ${lib.getExe packAndSign}
+          ''
+        }
+      '';
+    };
 
   mithril-client = lib.recursiveUpdate { meta.mainProgram = "mithril-client"; } common.mithril-bin;
 

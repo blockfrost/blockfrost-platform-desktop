@@ -1,6 +1,6 @@
 {
-  "name": "desktop-full-node-backend",
-  "version": "0.1.0",
+  "name": "blockfrost-platform-desktop",
+  "version": "0.2.0",
   "description": "Full-node headless wallet backend with standardized API.",
   "license": "Apache-2.0",
   "main": "index.js",

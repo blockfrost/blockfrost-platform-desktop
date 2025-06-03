@@ -28,7 +28,7 @@
       flake = false;
     };
 
-    mithril.url = "github:input-output-hk/mithril/2450.0";
+    mithril.url = "github:input-output-hk/mithril/2517.1";
 
     nix-bundle-exe.url = "github:3noch/nix-bundle-exe";
     nix-bundle-exe.flake = false;

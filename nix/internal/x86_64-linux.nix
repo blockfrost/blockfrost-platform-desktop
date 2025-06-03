@@ -37,7 +37,7 @@ in rec {
   };
 
   blockfrost-platform-desktop-exe = pkgs.buildGoModule rec {
-    name = "blockfrost-platform-desktop";
+    name = common.codeName;
     src = common.coreSrc;
     vendorHash = common.blockfrost-platform-desktop-exe-vendorHash;
     nativeBuildInputs = with pkgs; [ pkg-config ];
@@ -208,7 +208,7 @@ in rec {
     export WEBKIT_DEFAULT_DATA_DIR="$HOME"/.local/share/blockfrost-platform-desktop/webkit2gtk
   '';
 
-  blockfrost-platform-desktop = pkgs.runCommand "blockfrost-platform-desktop" {
+  blockfrost-platform-desktop = pkgs.runCommand common.codeName {
     meta.mainProgram = blockfrost-platform-desktop-exe.name;
   } ''
     mkdir -p $out/bin $out/libexec/blockfrost-platform-desktop
@@ -224,8 +224,11 @@ in rec {
     ln -s $out/libexec/blockfrost-platform-desktop/* $out/bin/
 
     mkdir -p $out/{libexec,share}
-    ln -s ${mkBundle { "cardano-node"   = lib.getExe cardano-node;
-                       "cardano-submit-api" = lib.getExe cardano-submit-api;}} $out/libexec/cardano-node
+    ln -s ${mkBundle ({
+              "cardano-node"   = lib.getExe cardano-node;
+            } // lib.optionalAttrs (!common.blockfrostPlatformOnly) {
+              "cardano-submit-api" = lib.getExe cardano-submit-api;
+            })} $out/libexec/cardano-node
     ln -s ${blockfrost-platform                                              } $out/libexec/blockfrost-platform
     ln -s ${mkBundle { "mithril-client" = lib.getExe mithril-client;        }} $out/libexec/mithril-client
     ln -s ${mkBundle { "clip"           = lib.getExe pkgs.xclip;            }} $out/libexec/xclip
@@ -273,7 +276,7 @@ in rec {
   '';
 
   desktopItem = pkgs.makeDesktopItem {
-    name = "blockfrost-platform-desktop";
+    name = common.codeName;
     exec = "INSERT_PATH_HERE";
     desktopName = common.prettyName;
     genericName = "Cardano Crypto-Currency Backend";
@@ -302,7 +305,7 @@ in rec {
     passAsFile = [ "script" ];
   } ''
     mkdir -p $out
-    target=$out/blockfrost-platform-desktop-${common.ourVersion}-${revShort}-${targetSystem}.bin
+    target=$out/${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.bin
     cat $scriptPath >$target
     echo 'Compressing (xz)...'
     tar -cJ -C ${blockfrost-platform-desktop-bundle} . >>$target
