@@ -6,7 +6,7 @@
     flake-compat.url = "github:input-output-hk/flake-compat";
     flake-compat.flake = false;
 
-    cardano-node.url = "github:IntersectMBO/cardano-node/10.3.1";
+    cardano-node.url = "github:IntersectMBO/cardano-node/10.4.1";
     cardano-node.flake = false; # prevent lockfile explosion
 
     cardano-playground.url = "github:input-output-hk/cardano-playground/39ea4db0daa11d6334a55353f685e185765a619b";
