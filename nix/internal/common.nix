@@ -131,6 +131,8 @@ in rec {
       BlockfrostPlatformRevision = ${__toJSON inputs.blockfrost-platform.rev}
       OgmiosVersion = ${__toJSON ogmios.version}
       OgmiosRevision = ${__toJSON inputs.ogmios.rev}
+      DolosVersion = ${__toJSON dolos.version}
+      DolosRevision = ${__toJSON inputs.dolos.rev}
       PostgresVersion = ${__toJSON postgresPackage.version}
       PostgresRevision = ${__toJSON postgresPackage.version}
       CardanoJsSdkVersion = ${__toJSON ((__fromJSON (__readFile (inputs.cardano-js-sdk + "/packages/cardano-services/package.json"))).version)}
@@ -152,6 +154,12 @@ in rec {
       MithrilAVKPreview = ${__toJSON mithrilAncillaryVerificationKeys.preview}
       MithrilAVKPreprod = ${__toJSON mithrilAncillaryVerificationKeys.preprod}
       MithrilAVKMainnet = ${__toJSON mithrilAncillaryVerificationKeys.mainnet}
+      MithrilAggregatorPreview = ${__toJSON mithrilAggregator.preview}
+      MithrilAggregatorPreprod = ${__toJSON mithrilAggregator.preprod}
+      MithrilAggregatorMainnet = ${__toJSON mithrilAggregator.mainnet}
+      NetworkStartPreview uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/preview/byron-genesis.json")).startTime}
+      NetworkStartPreprod uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/preprod/byron-genesis.json")).startTime}
+      NetworkStartMainnet uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/mainnet/byron-genesis.json")).startTime}
     )
   '';
 
@@ -216,6 +224,12 @@ in rec {
     mainnet = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/release-mainnet/ancillary.vkey");
   };
 
+  mithrilAggregator = {
+    preview = "https://aggregator.pre-release-preview.api.mithril.network/aggregator";
+    preprod = "https://aggregator.release-preprod.api.mithril.network/aggregator";
+    mainnet = "https://aggregator.release-mainnet.api.mithril.network/aggregator";
+  };
+
   # They removed `outputs.packages.x86_64-darwin`, see
   # <https://github.com/input-output-hk/mithril/issues/2250#issuecomment-2922616781>.
   mithrilFlake = (flake-compat {
@@ -245,13 +259,120 @@ in rec {
     aarch64-darwin = mithrilFlake.packages.${targetSystem}.mithril-client-cli;
   }.${targetSystem} // { version = ver; };
 
+  dolos = rec {
+    x86_64-linux = unix;
+    x86_64-darwin = unix;
+    aarch64-darwin = unix;
+    x86_64-windows = throw "dolos: unsupported system: ${targetSystem}";  # FIXME
+
+    unix = let
+      craneLib = (inputs.crane.mkLib pkgs);
+    in craneLib.buildPackage ({
+      src = inputs.dolos;
+      strictDeps = true;
+      nativeBuildInputs =
+        [pkgs.gnum4]
+        ++ lib.optionals pkgs.stdenv.isLinux [
+          pkgs.pkg-config
+        ];
+        buildInputs =
+          lib.optionals pkgs.stdenv.isLinux [
+            pkgs.openssl
+          ]
+          ++ lib.optionals pkgs.stdenv.isDarwin [
+            pkgs.libiconv
+            pkgs.darwin.apple_sdk_12_3.frameworks.SystemConfiguration
+            pkgs.darwin.apple_sdk_12_3.frameworks.Security
+            pkgs.darwin.apple_sdk_12_3.frameworks.CoreFoundation
+          ];
+          meta = {
+            mainProgram = "dolos";
+            description = "Cardano Data Node";
+          };
+    }
+    // lib.optionalAttrs pkgs.stdenv.isDarwin {
+      # for bindgen, used by libproc, used by metrics_process
+      LIBCLANG_PATH = "${lib.getLib pkgs.llvmPackages.libclang}/lib";
+    });
+  }.${targetSystem};
+
+  dolos-configs = let
+    networks = ["mainnet" "preprod" "preview"];
+    mkConfig = network: let
+      topology = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/topology.json");
+      byronGenesis = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/byron-genesis.json");
+      peerAddr = let first = lib.head topology.bootstrapPeers; in "${first.address}:${toString first.port}";
+      magic = toString byronGenesis.protocolConsts.protocolMagic;
+    in
+      pkgs.writeText "dolos.toml" ''
+        [upstream]
+        peer_address = "${peerAddr}"
+        network_magic = ${magic}
+        is_testnet = ${
+          if network == "mainnet"
+          then "false"
+          else "true"
+        }
+
+        [storage]
+        version = "v1"
+        path = "''${DOLOS_STORAGE_PATH}"
+        max_wal_history = 25920
+
+        [genesis]
+        byron_path = "''${GENESIS_PATH_BYRON}"
+        shelley_path = "''${GENESIS_PATH_SHELLEY}"
+        alonzo_path = "''${GENESIS_PATH_ALONZO}"
+        conway_path = "''${GENESIS_PATH_CONWAY}"
+        force_protocol = 6
+
+        [sync]
+        pull_batch_size = 100
+
+        [submit]
+
+        [serve.grpc]
+        listen_address = "[::]:''${DOLOS_GRPC_PORT}"
+        permissive_cors = true
+
+        [serve.ouroboros]
+        listen_path = "''${DOLOS_SOCKET_PATH}"
+        magic = ${magic}
+
+        [serve.minibf]
+        listen_address = "[::]:''${DOLOS_MINIBF_PORT}"
+
+        [relay]
+        listen_address = "[::]:''${DOLOS_RELAY_PORT}"
+        magic = ${magic}
+
+        [mithril]
+        aggregator = "${mithrilAggregator.${network}}"
+        genesis_key = "${mithrilGenesisVerificationKeys.${network}}"
+
+        [logging]
+        max_level = "INFO"
+        include_tokio = false
+        include_pallas = false
+        include_grpc = false
+      '';
+  in
+    pkgs.runCommandNoCC "dolos-configs" {} ''
+      mkdir -p $out
+      ${lib.concatMapStringsSep "\n" (network: ''
+          mkdir -p $out/${network}
+          cp ${mkConfig network} $out/${network}/dolos.toml
+        '')
+        networks}
+    '';
+
   ui = rec {
     nodejs = pkgs.nodejs;
 
     yarn = pkgs.yarn.override { inherit nodejs; };
 
     yarn2nix = let
-      src = builtins.path { path = pkgs.path + "/pkgs/development/tools/yarn2nix-moretea/yarn2nix"; };
+      src = builtins.path { path = pkgs.path + "/pkgs/development/tools/yarn2nix-moretea"; };
     in
       import src {
         inherit pkgs nodejs yarn;

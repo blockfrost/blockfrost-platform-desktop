@@ -6,6 +6,7 @@ import (
 	"time"
 	"strconv"
 	"regexp"
+	"os"
 
 	"blockfrost.io/blockfrost-platform-desktop/constants"
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
@@ -14,16 +15,30 @@ import (
 func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, chan<- StatusAndUrl) ManagedChild { return func(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {
 	sep := string(filepath.Separator)
 
+	serviceName := "blockfrost-platform"
+	tempConfigPath := ""
 	reSyncProgress := regexp.MustCompile(`"sync_progress"\s*:\s*(\d*\.\d+)`)
 
 	return ManagedChild{
-		ServiceName: "blockfrost-platform",
+		ServiceName: serviceName,
 		ExePath: ourpaths.LibexecDir + sep + "blockfrost-platform" + sep + "blockfrost-platform" + ourpaths.ExeSuffix,
 		Version: constants.BlockfrostPlatformVersion,
 		Revision: constants.BlockfrostPlatformRevision,
 		MkArgv: func() ([]string, error) {
 			*shared.BlockfrostPlatformPort = getFreeTCPPort()
+
+			// FIXME: currently we can’t pass Dolos via --dolos-endpoint,
+			// there's a bug in the Blockfrost platform,
+			// <https://github.com/blockfrost/blockfrost-platform/issues/353>
+			tmp, err := generateBFPConfig(shared)
+			if err != nil {
+				fmt.Printf("%s[%d]: config generation failed: %v\n", serviceName, -1, err)
+				return nil, err
+			}
+			tempConfigPath = tmp;
+
 			return []string{
+				"--config", tempConfigPath,
 				"--solitary",
 				"--server-address", "127.0.0.1",
 				"--server-port", fmt.Sprintf("%d", *shared.BlockfrostPlatformPort),
@@ -70,6 +85,30 @@ func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, ch
 		LogModifier: func(line string) string { return line },
 		TerminateGracefullyByInheritedFd3: false,
 		ForceKillAfter: 5 * time.Second,
-		PostStop: func() error { return nil },
+		PostStop: func() error {
+			if tempConfigPath != "" {
+				_ = os.Remove(tempConfigPath)
+			}
+			return nil
+		},
 	}
 }}
+
+func generateBFPConfig(shared SharedState) (string, error) {
+	rendered :=	fmt.Sprintf(`
+[data_sources.dolos]
+endpoint = "%s"
+request_timeout = %d
+`, fmt.Sprintf("http://127.0.0.1:%d", *shared.DolosPort), 30)
+	tmp, err := os.CreateTemp("", "blockfrost-platform-*.toml")
+	if err != nil { return "", err }
+	tempPath := tmp.Name()
+	if _, err := tmp.WriteString(rendered); err != nil {
+		_ = tmp.Close()
+		return "", err
+	}
+	if err := tmp.Close(); err != nil { // important for Windows
+		return "", err
+	}
+	return tempPath, nil
+}

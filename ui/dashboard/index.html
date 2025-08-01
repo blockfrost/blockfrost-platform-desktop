@@ -175,7 +175,7 @@
           }
           eA.addEventListener('click', function(event) {
             event.preventDefault();
-            fetch(apiUrl + '/v1/switch-network/' + magic, { method: 'PUT' });
+            fetch(apiUrl + '/_mgmt/switch-network/' + magic, { method: 'PUT' });
           });
           eNetworks.appendChild(eA);
         }
@@ -273,13 +273,13 @@
             if (!configResponse.ok) throw new Error('Non-200 response: ./web-ui-config.json');
             const config = await configResponse.json();
             apiUrl = config.api_url;
-            const wsUrl = apiUrl.replace(/^http/, 'ws') + '/v1/websocket';
+            const wsUrl = apiUrl.replace(/^http/, 'ws') + '/_mgmt/websocket';
 
             eLink.href = wsUrl;
             eLink.textContent = wsUrl;
 
-            const infoResponse = await fetch(apiUrl + '/v1/info');
-            if (!infoResponse.ok) throw new Error('Non-200 response: /v1/info');
+            const infoResponse = await fetch(apiUrl + '/_mgmt/info');
+            if (!infoResponse.ok) throw new Error('Non-200 response: /_mgmt/info');
             const info = await infoResponse.json();
 
             redrawNetworks(info);

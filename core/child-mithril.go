@@ -29,9 +29,9 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 	sep := string(filepath.Separator)
 
 	var upstream = map[string]string{
-		"preview": "https://aggregator.pre-release-preview.api.mithril.network/aggregator",
-		"preprod": "https://aggregator.release-preprod.api.mithril.network/aggregator",
-		"mainnet": "https://aggregator.release-mainnet.api.mithril.network/aggregator",
+		"preview": constants.MithrilAggregatorPreview,
+		"preprod": constants.MithrilAggregatorPreprod,
+		"mainnet": constants.MithrilAggregatorMainnet,
 	}
 
 	if appConfig.ForceMithrilSnapshot.Preview.Digest != "" { upstream["preview"] = fmt.Sprintf("http://127.0.0.1:%d/preview", shared.MithrilCachePort) }
@@ -77,7 +77,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 
 	currentStatus := SInitializing
 
-	// For debouncing:
+	// For log debouncing:
 	downloadProgressLastEmitted := time.Now()
 
 	explorerUrl := ""
@@ -224,6 +224,9 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					numTotal, _ := strconv.ParseFloat(ms[3], 64)
 					unitTotal := ms[4]
 					total := math.Round(numTotal * float64(unitToBytes(unitTotal)))
+					if total == 0.0 {
+						total = 1.0
+					}
 
 					numTimeRemaining, _ := strconv.ParseFloat(ms[5], 64)
 					unitTimeRemaining := ms[6]
@@ -310,13 +313,18 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			err = os.Rename(unpackDir, chainDir)
 			if err != nil { return err }
 
-			// TODO: do it:
 			err = os.RemoveAll(downloadDir)
 			if err != nil { return err }
 
-			// TODO: do it:
 			err = os.RemoveAll(chainDirBackup)
 			if err != nil { return err }
+
+			// Clear Dolos data dir (if it exists), it will be recreated based on the Mithril snapshot
+			dolosWorkDir := ourpaths.WorkDir + sep + shared.Network + sep + "dolos"
+			if _, err := os.Stat(dolosWorkDir); err == nil {
+				err = os.RemoveAll(dolosWorkDir)
+				if err != nil { return err }
+			}
 
 			currentStatus = SFinished
 			statusCh <- StatusAndUrl { Status: currentStatus, Progress: -1,

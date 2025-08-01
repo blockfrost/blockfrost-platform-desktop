@@ -1,13 +1,18 @@
 {
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-24.05-darwin";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
 
     flake-compat.url = "github:input-output-hk/flake-compat";
     flake-compat.flake = false;
 
     cardano-node.url = "github:IntersectMBO/cardano-node/10.4.1";
     cardano-node.flake = false; # prevent lockfile explosion
+
+    crane.url = "github:ipetkov/crane";
+
+    dolos.url = "github:txpipe/dolos/v0.30.0";
+    dolos.flake = false;
 
     cardano-playground.url = "github:input-output-hk/cardano-playground/39ea4db0daa11d6334a55353f685e185765a619b";
     cardano-playground.flake = false; # otherwise, +9k dependencies in flake.lock…
@@ -16,7 +21,8 @@
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
 
     blockfrost-platform = {
-      url = "github:blockfrost/blockfrost-platform/pull/296/head"; # fetch `/addresses/{addr}/utxos` from the ledger state
+      # 2025-07-17T15:46:21.000Z, Dolos integration – not yet released
+      url = "github:blockfrost/blockfrost-platform/303e3d411059297c5113892ca76a5fdd79c0d18c";
       flake = false; # to prevent lockfile explosion
     };
 

@@ -3,17 +3,17 @@
     "blockfrost-platform": {
       "flake": false,
       "locked": {
-        "lastModified": 1744196292,
-        "narHash": "sha256-YQi4CccKQs1STp2uJxAibnWOhnR6EaVgU3SmXxgi2hI=",
+        "lastModified": 1752767181,
+        "narHash": "sha256-G5R4HBgJ3FmF2tEs4dEEJTllBMtdPikCZ5WMZJEoVnw=",
         "owner": "blockfrost",
         "repo": "blockfrost-platform",
-        "rev": "4cc0ad65ff1ef80b2490d9f040f1617668cb81fb",
+        "rev": "303e3d411059297c5113892ca76a5fdd79c0d18c",
         "type": "github"
       },
       "original": {
         "owner": "blockfrost",
-        "ref": "pull/296/head",
         "repo": "blockfrost-platform",
+        "rev": "303e3d411059297c5113892ca76a5fdd79c0d18c",
         "type": "github"
       }
     },
@@ -70,6 +70,21 @@
     },
     "crane": {
       "locked": {
+        "lastModified": 1753316655,
+        "narHash": "sha256-tzWa2kmTEN69OEMhxFy+J2oWSvZP5QhEgXp3TROOzl0=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "f35a3372d070c9e9ccb63ba7ce347f0634ddf3d2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "type": "github"
+      }
+    },
+    "crane_2": {
+      "locked": {
         "lastModified": 1745454774,
         "narHash": "sha256-oLvmxOnsEKGtwczxp/CwhrfmQUG2ym24OMWowcoRhH8=",
         "owner": "ipetkov",
@@ -100,6 +115,23 @@
       "original": {
         "owner": "numtide",
         "repo": "devshell",
+        "type": "github"
+      }
+    },
+    "dolos": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1754311673,
+        "narHash": "sha256-I0D0z/QauD26orfq1uCpE81HCLMgUsseCad5ISMS6kE=",
+        "owner": "txpipe",
+        "repo": "dolos",
+        "rev": "82a09213a2af2d79b662cb94a903be6e94e4caec",
+        "type": "github"
+      },
+      "original": {
+        "owner": "txpipe",
+        "ref": "v0.30.0",
+        "repo": "dolos",
         "type": "github"
       }
     },
@@ -139,7 +171,7 @@
     },
     "mithril": {
       "inputs": {
-        "crane": "crane",
+        "crane": "crane_2",
         "flake-parts": "flake-parts",
         "nixpkgs": "nixpkgs",
         "treefmt-nix": "treefmt-nix"
@@ -225,16 +257,16 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1724967238,
-        "narHash": "sha256-fydaoGWHKzpDbhWMuKixf+slmiYFqSLOnmVYfFntQxs=",
+        "lastModified": 1751211869,
+        "narHash": "sha256-1Cu92i1KSPbhPCKxoiVG5qnoRiKTgR5CcGSRyLpOd7Y=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "893e9c69f3324ae99e87f1e8e49014c3c0ab12cf",
+        "rev": "b43c397f6c213918d6cfe6e3550abfe79b5d1c51",
         "type": "github"
       },
       "original": {
         "owner": "nixos",
-        "ref": "nixpkgs-24.05-darwin",
+        "ref": "nixos-25.05",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -264,7 +296,9 @@
         "cardano-js-sdk": "cardano-js-sdk",
         "cardano-node": "cardano-node",
         "cardano-playground": "cardano-playground",
+        "crane": "crane",
         "devshell": "devshell",
+        "dolos": "dolos",
         "flake-compat": "flake-compat",
         "mithril": "mithril",
         "nix-bundle-exe": "nix-bundle-exe",

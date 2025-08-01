@@ -209,6 +209,9 @@ in rec {
     mkdir -p $out/libexec/cardano-node
     cp -Lf ${cardano-node}/bin/*.{exe,dll} $out/libexec/cardano-node/
 
+    mkdir -p $out/libexec/dolos
+    cp -L ${common.dolos}/bin/*.{exe,dll} $out/libexec/dolos/
+
     ${lib.optionalString (!common.blockfrostPlatformOnly) ''
       cp -Lf ${cardano-submit-api}/bin/*.{exe,dll} $out/libexec/cardano-node/
 
@@ -236,6 +239,7 @@ in rec {
     cp -Lr ${WebView2}/. $out/libexec/webview2/
 
     cp -Lr ${common.cardano-node-configs} $out/cardano-node-config
+    cp -Lr ${common.dolos-configs} $out/dolos-config
     cp -Lr ${common.swagger-ui} $out/swagger-ui
     cp -Lr ${ui.dist} $out/ui
   '';

@@ -277,6 +277,7 @@ in rec {
     ln -s ${cardano-node-bundle} "$app"/MacOS/cardano-node
 
     ln -s ${blockfrost-platform                                             }/libexec "$app"/MacOS/blockfrost-platform
+    ln -s ${mkBundle { "dolos"          = lib.getExe common.dolos;          }} "$app"/MacOS/dolos
     ln -s ${mkBundle { "mithril-client" = lib.getExe mithril-client;        }} "$app"/MacOS/mithril-client
 
     ${lib.optionalString (!common.blockfrostPlatformOnly) ''
@@ -287,6 +288,7 @@ in rec {
     ''}
 
     ln -s ${common.cardano-node-configs} "$app"/Resources/cardano-node-config
+    ln -s ${common.dolos-configs} "$app"/Resources/dolos-config
     ln -s ${common.swagger-ui} "$app"/Resources/swagger-ui
     ln -s ${ui.dist} "$app"/Resources/ui
 
