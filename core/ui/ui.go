@@ -104,7 +104,7 @@ func SetupTray(
 	fixme_DolosStatus := make(chan string)
 	fixme_PostgresStatus := make(chan string)
 	fixme_SetOgmiosDashboard := make(chan string)
-	fixme_SetBlockfrostPlatformUrl := make(chan string)
+	//fixme_SetBlockfrostPlatformUrl := make(chan string)
 	//fixme_SetDolosUrl := make(chan string)
 	fixme_SetCardanoSubmitApiUrl := make(chan string)
 	fixme_ProviderServerStatus := make(chan string)
@@ -129,7 +129,7 @@ func SetupTray(
 				fixme_SetOgmiosDashboard <- upd.Url
 			case "blockfrost-platform":
 				fixme_BlockfrostPlatformStatus <- formatted
-				fixme_SetBlockfrostPlatformUrl <- upd.Url
+				//fixme_SetBlockfrostPlatformUrl <- upd.Url
 			case "dolos":
 				fixme_DolosStatus <- formatted
 				//fixme_SetDolosUrl <- upd.Url  // if you uncomment, read it! otherways UI will hang
@@ -182,6 +182,7 @@ func SetupTray(
 	}()
 	*/
 
+	/*
 	mCopyBlockfrostPlatformUrl := systray.AddMenuItem("Copy Blockfrost platform URL", "")
 	go func() {
 		url := ""
@@ -201,6 +202,7 @@ func SetupTray(
 			}
 		}}
 	}()
+	*/
 
 	systray.AddSeparator()
 
