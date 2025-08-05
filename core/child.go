@@ -62,6 +62,7 @@ type SharedState struct {
 	SyncProgress *float64  // XXX: we take that from Ogmios, we should probably calculate ourselves?
 	CardanoNodeConfigDir string
 	CardanoNodeSocket string
+	CardanoNodePort *int
 	CardanoSubmitApiPort *int
 	OgmiosPort *int
 	BlockfrostPlatformPort *int
@@ -111,6 +112,7 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 			SyncProgress: &[]float64{ -1.0 }[0],  // wat
 			CardanoNodeConfigDir: ourpaths.NetworkConfigDir + sep + network,
 			CardanoNodeSocket: ourpaths.WorkDir + sep + network + sep + "node.sock",
+			CardanoNodePort: new(int),
 			CardanoSubmitApiPort: new(int),
 			OgmiosPort: new(int),
 			BlockfrostPlatformPort: new(int),
@@ -138,9 +140,9 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 		usedChildren := []func(SharedState, chan<- StatusAndUrl)ManagedChild{}
 
 		if !runMithril {
-			usedChildren = append(usedChildren, childDolos())
 			usedChildren = append(usedChildren, childCardanoNode)
 			usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
+			usedChildren = append(usedChildren, childDolos())
 			if !constants.BlockfrostPlatformOnly {
 				usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
 				usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))

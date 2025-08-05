@@ -56,12 +56,14 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 		Version: constants.CardanoNodeVersion,
 		Revision: constants.CardanoNodeRevision,
 		MkArgv: func() ([]string, error) {
+			*shared.CardanoNodePort = getFreeTCPPort()
+
 			return []string {
 				"run",
 				"--topology", shared.CardanoNodeConfigDir + sep + "topology.json",
 				"--database-path", ourpaths.WorkDir + sep + shared.Network + sep +
 					"chain",
-				"--port", fmt.Sprintf("%d", getFreeTCPPort()),
+				"--port", fmt.Sprintf("%d", *shared.CardanoNodePort),
 				"--host-addr", "0.0.0.0",
 				"--config", shared.CardanoNodeConfigDir + sep + "config.json",
 				"--socket-path", shared.CardanoNodeSocket,

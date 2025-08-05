@@ -207,8 +207,8 @@ func SetupTray(
 	// XXX: this weird type because we want order, and there are no tuples:
 	statuses := []map[string](<-chan string) {
 		{ "blockfrost-platform":fixme_BlockfrostPlatformStatus },
-		{ "dolos":              fixme_DolosStatus },
 		{ "cardano-node":       fixme_CardanoNodeStatus },
+		{ "dolos":              fixme_DolosStatus },
 		// { "ogmios":             fixme_OgmiosStatus },
 		// { "cardano-submit-api": fixme_CardanoSubmitApiStatus },
 		// { "postgres":           fixme_PostgresStatus },

@@ -93,6 +93,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 			}
 			templatePath := ourpaths.ResourcesDir + sep + "dolos-config" + sep + shared.Network + sep + "dolos.toml"
 			tmp, err := generateDolosConfig(templatePath, map[string]string{
+				"PEER_ADDRESS": fmt.Sprintf("127.0.0.1:%d", *shared.CardanoNodePort),
 				"DOLOS_STORAGE_PATH": dolosWorkDir,
 				"DOLOS_SOCKET_PATH": dolosSocketPath,
 				"DOLOS_MINIBF_PORT": fmt.Sprintf("%d", *shared.DolosPort),

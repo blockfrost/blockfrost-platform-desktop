@@ -313,7 +313,7 @@ in rec {
     in
       pkgs.writeText "dolos.toml" ''
         [upstream]
-        peer_address = "${peerAddr}"
+        peer_address = "''${PEER_ADDRESS}"
         network_magic = ${magic}
         is_testnet = ${
           if network == "mainnet"
