@@ -263,7 +263,14 @@ in rec {
     x86_64-linux = unix;
     x86_64-darwin = unix;
     aarch64-darwin = unix;
-    x86_64-windows = throw "dolos: unsupported system: ${targetSystem}";  # FIXME
+
+    # FIXME: Windows
+    x86_64-windows = pkgs.runCommandNoCC "dolos-stub" {
+      inherit (unix) version;
+    } ''
+      mkdir -p $out/bin
+      touch $out/bin/fixme-dolos-stub.dll
+    '';
 
     unix = let
       craneLib = (inputs.crane.mkLib pkgs);
