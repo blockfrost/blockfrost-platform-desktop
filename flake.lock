@@ -3,17 +3,17 @@
     "blockfrost-platform": {
       "flake": false,
       "locked": {
-        "lastModified": 1752767181,
-        "narHash": "sha256-G5R4HBgJ3FmF2tEs4dEEJTllBMtdPikCZ5WMZJEoVnw=",
+        "lastModified": 1754384610,
+        "narHash": "sha256-Z7+xq+BeiNHHZ6+CLa0KKGAp3CjsMPXB9qaqMvbWZM4=",
         "owner": "blockfrost",
         "repo": "blockfrost-platform",
-        "rev": "303e3d411059297c5113892ca76a5fdd79c0d18c",
+        "rev": "1f5c2a8e99fe0d27021700bd877e198a611125be",
         "type": "github"
       },
       "original": {
         "owner": "blockfrost",
         "repo": "blockfrost-platform",
-        "rev": "303e3d411059297c5113892ca76a5fdd79c0d18c",
+        "rev": "1f5c2a8e99fe0d27021700bd877e198a611125be",
         "type": "github"
       }
     },

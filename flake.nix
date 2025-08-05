@@ -21,8 +21,8 @@
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
 
     blockfrost-platform = {
-      # 2025-07-17T15:46:21.000Z, Dolos integration – not yet released
-      url = "github:blockfrost/blockfrost-platform/303e3d411059297c5113892ca76a5fdd79c0d18c";
+      # 2025-08-05T09:03:30.000Z, Dolos integration – not yet released
+      url = "github:blockfrost/blockfrost-platform/1f5c2a8e99fe0d27021700bd877e198a611125be";
       flake = false; # to prevent lockfile explosion
     };
 
