@@ -69,6 +69,13 @@
         x86_64-windows = inputs.self.packages.x86_64-linux.installer-x86_64-windows;
       };
 
+      package = {
+        x86_64-linux   = inputs.self.packages.x86_64-linux.default;
+        x86_64-darwin  = inputs.self.packages.x86_64-darwin.default;
+        aarch64-darwin  = inputs.self.packages.aarch64-darwin.default;
+        x86_64-windows = inputs.self.packages.x86_64-linux.default-x86_64-windows;
+      };
+
       inherit (inputs.self) devShells;
 
       required = inputs.nixpkgs.legacyPackages.x86_64-linux.releaseTools.aggregate {
@@ -76,6 +83,7 @@
         meta.description = "All jobs required to pass CI";
         constituents =
           __attrValues inputs.self.hydraJobs.installer ++
+          __attrValues inputs.self.hydraJobs.package ++
           map (a: a.default) (__attrValues inputs.self.hydraJobs.devShells);
       };
     };
