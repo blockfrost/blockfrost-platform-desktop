@@ -139,10 +139,17 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 
 		usedChildren := []func(SharedState, chan<- StatusAndUrl)ManagedChild{}
 
+		dolosPRS := dolosPreRunState(shared)
+
 		if !runMithril {
+			if dolosPRS.BootstrappingFromMithril {
+				usedChildren = append(usedChildren, childDolos())
+			}
 			usedChildren = append(usedChildren, childCardanoNode)
 			usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
-			usedChildren = append(usedChildren, childDolos())
+			if !dolosPRS.BootstrappingFromMithril {
+				usedChildren = append(usedChildren, childDolos())
+			}
 			if !constants.BlockfrostPlatformOnly {
 				usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
 				usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))

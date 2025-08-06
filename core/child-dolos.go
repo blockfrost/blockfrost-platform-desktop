@@ -17,6 +17,37 @@ import (
 	"github.com/acarl005/stripansi"
 )
 
+type DolosPreRunState struct {
+	DolosWorkDir string
+	ChainDir string
+	NeedsBootstrap bool
+	HasChainDir bool
+	BootstrappingFromMithril bool
+}
+
+func dolosPreRunState(shared SharedState) DolosPreRunState {
+	sep := string(filepath.Separator)
+
+	dolosWorkDir := ourpaths.WorkDir + sep + shared.Network + sep + "dolos"
+	chainDir := ourpaths.WorkDir + sep + shared.Network + sep + "chain"
+
+	_, err := os.Stat(dolosWorkDir)
+	needsBootstrap := err != nil
+
+	_, err = os.Stat(chainDir)
+	hasChainDir := err == nil
+
+	bootstrappingFromMithril := needsBootstrap && hasChainDir;
+
+	return DolosPreRunState {
+		DolosWorkDir: dolosWorkDir,
+		ChainDir: chainDir,
+		NeedsBootstrap: needsBootstrap,
+		HasChainDir: hasChainDir,
+		BootstrappingFromMithril: bootstrappingFromMithril,
+	}
+}
+
 func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return func(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {
 	sep := string(filepath.Separator)
 
@@ -48,16 +79,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 	// remove the Dolos work directory, so on the next restart it will be
 	// recreated based on that fresh Mithril snapshot.
 
-	dolosWorkDir := ourpaths.WorkDir + sep + shared.Network + sep + "dolos"
-	chainDir := ourpaths.WorkDir + sep + shared.Network + sep + "chain"
-
-	_, err := os.Stat(dolosWorkDir)
-	needsBootstrap := err != nil
-
-	_, err = os.Stat(chainDir)
-	hasChainDir := err == nil
-
-	bootstrappingFromMithril := needsBootstrap && hasChainDir;
+	prs := dolosPreRunState(shared)
 
 	// A mini-monster, we’ll be able to get rid of it once Dolos provides more machine-readable output:
 	reProgress := regexp.MustCompile(
@@ -94,7 +116,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 			templatePath := ourpaths.ResourcesDir + sep + "dolos-config" + sep + shared.Network + sep + "dolos.toml"
 			tmp, err := generateDolosConfig(templatePath, map[string]string{
 				"PEER_ADDRESS": fmt.Sprintf("127.0.0.1:%d", *shared.CardanoNodePort),
-				"DOLOS_STORAGE_PATH": dolosWorkDir,
+				"DOLOS_STORAGE_PATH": prs.DolosWorkDir,
 				"DOLOS_SOCKET_PATH": dolosSocketPath,
 				"DOLOS_MINIBF_PORT": fmt.Sprintf("%d", *shared.DolosPort),
 				"DOLOS_RELAY_PORT": fmt.Sprintf("%d", dolosRelayPort),
@@ -110,7 +132,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 			}
 			tempConfigPath = tmp;
 
-			if needsBootstrap {
+			if prs.NeedsBootstrap {
 				statusCh <- StatusAndUrl {
 					Status: "bootstrapping",
 					Progress: -1,
@@ -120,11 +142,11 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 					OmitUrl: false,
 				}
 
-				if bootstrappingFromMithril {
+				if prs.BootstrappingFromMithril {
 					return []string{
 						"--config", tempConfigPath,
 						"bootstrap", "mithril",
-						"--download-dir", chainDir,
+						"--download-dir", prs.ChainDir,
 						"--skip-download",
 						"--retain-snapshot",
 						"--skip-validation",
@@ -155,7 +177,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 		},
 		MkExtraEnv: func() []string { return []string{} },
 		PostStart: func() error { return nil },
-		AllocatePTY: bootstrappingFromMithril, // Mithril restore progress is available only on TTY
+		AllocatePTY: prs.BootstrappingFromMithril, // Mithril restore progress is available only on TTY
 		StatusCh: statusCh,
 		HealthProbe: func(prev HealthStatus) HealthStatus {
 			dolosUrl := fmt.Sprintf("http://127.0.0.1:%d", *shared.DolosPort)
@@ -200,7 +222,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 			}
 		},
 		LogMonitor: func(line string) {
-			if bootstrappingFromMithril {
+			if prs.BootstrappingFromMithril {
 				if ms := reProgress.FindStringSubmatch(line); len(ms) > 0 {
 					numDone, _ := strconv.ParseInt(ms[1], 10, 64)
 					done := float64(numDone)
@@ -230,7 +252,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 			}
 		},
 		LogModifier: func(line string) string {
-			if !bootstrappingFromMithril {
+			if !prs.BootstrappingFromMithril {
 				now := time.Now().UTC()
 				line = removeTimestamp(line, now)
 				line = removeTimestamp(line, now.Add(-1 * time.Second))
