@@ -107,20 +107,11 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 		Revision: constants.DolosRevision,
 		MkArgv: func() ([]string, error) {
 			*shared.DolosPort = getFreeTCPPort()
-			dolosRelayPort := getFreeTCPPort()
-			dolosGRPCPort := getFreeTCPPort()
-			dolosSocketPath := ourpaths.WorkDir + sep + shared.Network + sep + "dolos.sock";
-			if (runtime.GOOS == "windows") {
-				dolosSocketPath = mkNewWindowsPipeName("dolos-" + shared.Network)
-			}
 			templatePath := ourpaths.ResourcesDir + sep + "dolos-config" + sep + shared.Network + sep + "dolos.toml"
 			tmp, err := generateDolosConfig(templatePath, map[string]string{
 				"PEER_ADDRESS": fmt.Sprintf("127.0.0.1:%d", *shared.CardanoNodePort),
 				"DOLOS_STORAGE_PATH": prs.DolosWorkDir,
-				"DOLOS_SOCKET_PATH": dolosSocketPath,
 				"DOLOS_MINIBF_PORT": fmt.Sprintf("%d", *shared.DolosPort),
-				"DOLOS_RELAY_PORT": fmt.Sprintf("%d", dolosRelayPort),
-				"DOLOS_GRPC_PORT": fmt.Sprintf("%d", dolosGRPCPort),
 				"GENESIS_PATH_BYRON": shared.CardanoNodeConfigDir + sep + "byron-genesis.json",
 				"GENESIS_PATH_SHELLEY": shared.CardanoNodeConfigDir + sep + "shelley-genesis.json",
 				"GENESIS_PATH_ALONZO": shared.CardanoNodeConfigDir + sep + "alonzo-genesis.json",

@@ -87,7 +87,7 @@ in rec {
 
   blockfrost-platform =
     blockfrostPlatformFlake.internal.${targetSystem}.bundle // {
-      inherit (blockfrostPlatformFlake.internal.${targetSystem}.package) version;
+      inherit (blockfrostPlatformFlake.internal.${targetSystem}.blockfrost-platform) version;
     };
 
   cardano-node = {
@@ -132,7 +132,7 @@ in rec {
       OgmiosVersion = ${__toJSON ogmios.version}
       OgmiosRevision = ${__toJSON inputs.ogmios.rev}
       DolosVersion = ${__toJSON dolos.version}
-      DolosRevision = ${__toJSON inputs.dolos.rev}
+      DolosRevision = ${__toJSON blockfrostPlatformFlake.inputs.dolos.rev}
       PostgresVersion = ${__toJSON postgresPackage.version}
       PostgresRevision = ${__toJSON postgresPackage.version}
       CardanoJsSdkVersion = ${__toJSON ((__fromJSON (__readFile (inputs.cardano-js-sdk + "/packages/cardano-services/package.json"))).version)}
@@ -259,110 +259,71 @@ in rec {
     aarch64-darwin = mithrilFlake.packages.${targetSystem}.mithril-client-cli;
   }.${targetSystem} // { version = ver; };
 
-  dolos = rec {
-    x86_64-linux = unix;
-    x86_64-darwin = unix;
-    aarch64-darwin = unix;
+  dolos = blockfrostPlatformFlake.internal.${targetSystem}.dolos;
 
-    # FIXME: Windows
-    x86_64-windows = pkgs.runCommandNoCC "dolos-stub" {
-      inherit (unix) version;
-    } ''
-      mkdir -p $out/bin
-      touch $out/bin/fixme-dolos-stub.dll
-    '';
-
-    unix = let
-      craneLib = (inputs.crane.mkLib pkgs);
-    in craneLib.buildPackage ({
-      src = inputs.dolos;
-      strictDeps = true;
-      nativeBuildInputs =
-        [pkgs.gnum4]
-        ++ lib.optionals pkgs.stdenv.isLinux [
-          pkgs.pkg-config
-        ];
-        buildInputs =
-          lib.optionals pkgs.stdenv.isLinux [
-            pkgs.openssl
-          ]
-          ++ lib.optionals pkgs.stdenv.isDarwin [
-            pkgs.libiconv
-            pkgs.darwin.apple_sdk_12_3.frameworks.SystemConfiguration
-            pkgs.darwin.apple_sdk_12_3.frameworks.Security
-            pkgs.darwin.apple_sdk_12_3.frameworks.CoreFoundation
-          ];
-          meta = {
-            mainProgram = "dolos";
-            description = "Cardano Data Node";
-          };
-    }
-    // lib.optionalAttrs pkgs.stdenv.isDarwin {
-      # for bindgen, used by libproc, used by metrics_process
-      LIBCLANG_PATH = "${lib.getLib pkgs.llvmPackages.libclang}/lib";
-    });
-  }.${targetSystem};
-
+  # Aligned with blockfrost-platform's nix/internal/unix.nix `dolos-configs`:
   dolos-configs = let
     networks = ["mainnet" "preprod" "preview"];
+
+    tokenRegistryUrl = {
+      mainnet = "https://tokens.cardano.org";
+      preprod = "https://metadata.world.dev.cardano.org";
+      preview = "https://metadata.world.dev.cardano.org";
+    };
+
     mkConfig = network: let
       topology = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/topology.json");
       byronGenesis = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/byron-genesis.json");
       peerAddr = let first = lib.head topology.bootstrapPeers; in "${first.address}:${toString first.port}";
       magic = toString byronGenesis.protocolConsts.protocolMagic;
     in
-      pkgs.writeText "dolos.toml" ''
-        [upstream]
-        peer_address = "''${PEER_ADDRESS}"
-        network_magic = ${magic}
-        is_testnet = ${
-          if network == "mainnet"
-          then "false"
-          else "true"
-        }
+      pkgs.writeText "dolos.toml" (''
+          [genesis]
+          alonzo_path = "''${GENESIS_PATH_ALONZO}"
+          byron_path = "''${GENESIS_PATH_BYRON}"
+          conway_path = "''${GENESIS_PATH_CONWAY}"
+        ''
+        + lib.optionalString (network == "preview") ''
+          force_protocol = 6
+        ''
+        + ''
+          shelley_path = "''${GENESIS_PATH_SHELLEY}"
 
-        [storage]
-        version = "v1"
-        path = "''${DOLOS_STORAGE_PATH}"
-        max_wal_history = 25920
+          [logging]
+          include_grpc = false
+          include_pallas = false
+          include_tokio = false
+          include_trp = false
+          max_level = "INFO"
 
-        [genesis]
-        byron_path = "''${GENESIS_PATH_BYRON}"
-        shelley_path = "''${GENESIS_PATH_SHELLEY}"
-        alonzo_path = "''${GENESIS_PATH_ALONZO}"
-        conway_path = "''${GENESIS_PATH_CONWAY}"
-        force_protocol = 6
+          [mithril]
+          aggregator = "${mithrilAggregator.${network}}"
+          ancillary_key = "${mithrilAncillaryVerificationKeys.${network}}"
+          genesis_key = "${mithrilGenesisVerificationKeys.${network}}"
 
-        [sync]
-        pull_batch_size = 100
+          [serve.minibf]
+          listen_address = "[::]:''${DOLOS_MINIBF_PORT}"
+          token_registry_url = "${tokenRegistryUrl.${network}}"
 
-        [submit]
+          [storage]
+          max_wal_history = 25920
+          path = "''${DOLOS_STORAGE_PATH}"
+          version = "v3"
 
-        [serve.grpc]
-        listen_address = "[::]:''${DOLOS_GRPC_PORT}"
-        permissive_cors = true
+          [submit]
 
-        [serve.ouroboros]
-        listen_path = "''${DOLOS_SOCKET_PATH}"
-        magic = ${magic}
+          [sync]
+          pull_batch_size = 100
 
-        [serve.minibf]
-        listen_address = "[::]:''${DOLOS_MINIBF_PORT}"
-
-        [relay]
-        listen_address = "[::]:''${DOLOS_RELAY_PORT}"
-        magic = ${magic}
-
-        [mithril]
-        aggregator = "${mithrilAggregator.${network}}"
-        genesis_key = "${mithrilGenesisVerificationKeys.${network}}"
-
-        [logging]
-        max_level = "INFO"
-        include_tokio = false
-        include_pallas = false
-        include_grpc = false
-      '';
+          [upstream]
+        ''
+        + lib.optionalString (network != "mainnet") ''
+          is_testnet = true
+        ''
+        + ''
+          network_magic = ${magic}
+          peer_address = "''${PEER_ADDRESS}"
+        '');
   in
     pkgs.runCommandNoCC "dolos-configs" {} ''
       mkdir -p $out

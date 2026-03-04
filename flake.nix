@@ -11,9 +11,6 @@
 
     crane.url = "github:ipetkov/crane";
 
-    dolos.url = "github:txpipe/dolos/v0.30.0";
-    dolos.flake = false;
-
     cardano-playground.url = "github:input-output-hk/cardano-playground/39ea4db0daa11d6334a55353f685e185765a619b";
     cardano-playground.flake = false; # otherwise, +9k dependencies in flake.lock…
 
@@ -21,8 +18,8 @@
     cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
 
     blockfrost-platform = {
-      # 2025-08-05T09:03:30.000Z, Dolos integration – not yet released
-      url = "github:blockfrost/blockfrost-platform/1f5c2a8e99fe0d27021700bd877e198a611125be";
+      # FIXME: update to `main` when this is merged:
+      url = "github:blockfrost/blockfrost-platform/pull/467/head";
       flake = false; # to prevent lockfile explosion
     };
 
