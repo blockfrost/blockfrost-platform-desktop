@@ -183,15 +183,14 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 				var payload Payload
 				err = json.Unmarshal([]byte(body), &payload)
 				if err == nil {
-					const tolerance uint64 = 15 // [s]
 					current := payload.Time; // [s]
 					now := uint64(time.Now().Unix()) // [s]
 
-					progress := 1.0
-					status := "listening"
-					if now - current > tolerance {
-						progress = float64(current - shared.NetworkStartTime) / float64(now - shared.NetworkStartTime)
-						status = "syncing"
+					progress := float64(current - shared.NetworkStartTime) / float64(now - shared.NetworkStartTime)
+					status := "syncing"
+					if progress >= 0.99995 {
+						progress = 1.0
+						status = "listening"
 					}
 
 					statusCh <- StatusAndUrl {
@@ -235,7 +234,8 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 					statusCh <- StatusAndUrl { Status: description, Progress: progress,
 						TaskSize: total, SecondsLeft: timeRemaining, OmitUrl: true }
 					return // there would be no way to have `else if` here, hence early return
-				} else {
+				} else if !strings.Contains(line, " ERROR ") {
+					// FIXME: unignore errors after Dolos 1.0.0
 					description := reTimestamp.ReplaceAllString(line, "")
 					statusCh <- StatusAndUrl { Status: description, Progress: -1,
 						TaskSize: -1, SecondsLeft: -1, OmitUrl: true }
