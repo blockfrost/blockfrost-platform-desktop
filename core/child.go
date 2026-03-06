@@ -36,6 +36,7 @@ type ManagedChild struct {
 	LogMonitor  func(string)
 	LogModifier func(string) string // e.g. to drop redundant timestamps
 	TerminateGracefullyByInheritedFd3 bool // <https://github.com/input-output-hk/cardano-node/issues/726>
+	OpenFileLimit int // if > 0, wrap child in a shell that sets RLIMIT_NOFILE to this value
 	ForceKillAfter time.Duration // graceful exit timeout, after which we SIGKILL the child
 	PostStop    func() error
 }
@@ -303,7 +304,8 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 			go childFun(child.ExePath, childArgv, child.MkExtraEnv(),
 				child.LogModifier, outputLines, terminateCh, &childPid,
 				child.TerminateGracefullyByInheritedFd3,
-				child.ForceKillAfter)
+				child.ForceKillAfter,
+				child.OpenFileLimit)
 			defer func() {
 				if !childDidExit {
 					child.StatusCh <- StatusAndUrl {
@@ -426,6 +428,7 @@ func childProcess(
 	outputLines chan<- string, terminate <-chan struct{}, pid *int,
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
+	openFileLimit int,
 ) {
 	defer close(outputLines)
 
@@ -446,6 +449,7 @@ func childProcess(
 	cmd := exec.Command(path, argv...)
 
 	setManagedChildSysProcAttr(cmd)
+	setOpenFileLimit(cmd, openFileLimit)
 
 	if len(extraEnv) > 0 {
 		cmd.Env = append(os.Environ(), extraEnv...)
@@ -575,6 +579,7 @@ func childProcessPTY(
 	outputLines chan<- string, terminate <-chan struct{}, pid *int,
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
+	openFileLimit int,
 ) {
 	defer close(outputLines)
 
@@ -586,6 +591,7 @@ func childProcessPTY(
 	cmd := exec.Command(path, argv...)
 
 	setManagedChildSysProcAttr(cmd)
+	setOpenFileLimit(cmd, openFileLimit)
 
 	if len(extraEnv) > 0 {
 		cmd.Env = append(os.Environ(), extraEnv...)

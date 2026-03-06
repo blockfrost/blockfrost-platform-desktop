@@ -44,6 +44,9 @@ func setManagedChildSysProcAttr(cmd *exec.Cmd) {
 	cmd.SysProcAttr.HideWindow = true
 }
 
+func setOpenFileLimit(cmd *exec.Cmd, n int) {
+}
+
 // XXX: we can’t make these WinAPI calls from the current process, as they change to much regarding
 // consoles attached to processes. Let’s offload them to a small C program:
 func windowsSendCtrlBreak(pid int) {
@@ -104,6 +107,7 @@ func childProcessPTYWindows(
 	outputLines chan<- string, terminate <-chan struct{}, pid *int,
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
+	openFileLimit int,
 ) {
 	defer close(outputLines)
 

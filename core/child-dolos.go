@@ -277,6 +277,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 				return line
 			}
 		},
+		OpenFileLimit: 4096,
 		TerminateGracefullyByInheritedFd3: false,
 		ForceKillAfter: 5 * time.Second,
 		PostStop: func() error {
