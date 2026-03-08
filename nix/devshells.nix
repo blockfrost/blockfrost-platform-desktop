@@ -11,6 +11,7 @@ in {
   default = pkgs.mkShell {
     packages = with pkgs; [
       go
+      gopls
       # FIXME:
       (pkgs.writeShellApplication {name = "treefmt"; text = ":";})
       # FIXME:
