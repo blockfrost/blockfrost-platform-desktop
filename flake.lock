@@ -238,6 +238,23 @@
         "type": "github"
       }
     },
+    "nixpkgs-webkitgtk": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1724967238,
+        "narHash": "sha256-fydaoGWHKzpDbhWMuKixf+slmiYFqSLOnmVYfFntQxs=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "893e9c69f3324ae99e87f1e8e49014c3c0ab12cf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixpkgs-24.05-darwin",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs_2": {
       "locked": {
         "lastModified": 1751211869,
@@ -286,6 +303,7 @@
         "nix-bundle-exe": "nix-bundle-exe",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-nsis": "nixpkgs-nsis",
+        "nixpkgs-webkitgtk": "nixpkgs-webkitgtk",
         "ogmios": "ogmios"
       }
     },

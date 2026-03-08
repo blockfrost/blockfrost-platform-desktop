@@ -25,7 +25,9 @@ in rec {
     patches = (old.patches or []) ++ [ ./nodejs--no-verify-snapshot-checksum.patch ];
   });
 
-  webkit2gtk = pkgs.webkitgtk_4_1.overrideAttrs (old: {
+  webkit2gtk = let
+    oldPkgs = import inputs.nixpkgs-webkitgtk { system = targetSystem; };
+  in oldPkgs.webkitgtk_4_1.overrideAttrs (old: {
     patches = (old.patches or []) ++ [ ./webkitgtk--specify-paths-via-env.patch ];
   });
 

@@ -3,6 +3,12 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
 
+    # FIXME: Linux’ `webkitgtk_4_1` 2.48 (from `nixos-25.05`) has a white-screen
+    # bug when used with Wails v3. For now, let’s pin it to the last known-good
+    # version (2.44.3) from the old Nixpkgs:
+    nixpkgs-webkitgtk.url = "github:nixos/nixpkgs/nixpkgs-24.05-darwin"; #893e9c69f3324ae99e87f1e8e49014c3c0ab12cf
+    nixpkgs-webkitgtk.flake = false; # only used for webkitgtk_4_1
+
     flake-compat.url = "github:input-output-hk/flake-compat";
     flake-compat.flake = false;
 
