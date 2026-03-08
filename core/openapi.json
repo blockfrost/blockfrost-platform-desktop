@@ -20,7 +20,7 @@
       "get": {
         "operationId": "b05bfb62-9d83-4a8c-8431-42a737ed4d1e",
         "summary": "Proxy to the Blockfrost platform",
-        "description": "Everything under `/api/v0/*` will be proxied to the underlying Blockfrost platform.",
+        "description": "Everything under `/api/v0/*` will be proxied to the underlying Blockfrost platform. The request format is compatible with the public Blockfrost API.\n\nFor example, try `GET /api/v0/txs/46876a2250ec0e523eccc30b0fc6d6fa55c61dd200b83140acaab291edeb0b11`.",
         "tags": ["default"],
         "parameters": [],
         "responses": {
