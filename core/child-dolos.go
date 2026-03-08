@@ -234,7 +234,8 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild { return f
 					statusCh <- StatusAndUrl { Status: description, Progress: progress,
 						TaskSize: total, SecondsLeft: timeRemaining, OmitUrl: true }
 					return // there would be no way to have `else if` here, hence early return
-				} else if !strings.Contains(line, " ERROR ") {
+				} else if !strings.Contains(line, " ERROR ") &&
+					!strings.HasPrefix(line, "d proposal proposal=") {
 					// FIXME: unignore errors after Dolos 1.0.0
 					description := reTimestamp.ReplaceAllString(line, "")
 					statusCh <- StatusAndUrl { Status: description, Progress: -1,
