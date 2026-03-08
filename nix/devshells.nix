@@ -11,6 +11,10 @@ in {
   default = pkgs.mkShell {
     packages = with pkgs; [
       go
+      # FIXME:
+      (pkgs.writeShellApplication {name = "treefmt"; text = ":";})
+      # FIXME:
+      (pkgs.writeShellApplication {name = "nixlint"; text = ":";})
     ] ++ lib.optionals pkgs.stdenv.isLinux [
       pkg-config
       inputs.self.internal.${buildSystem}.webkit2gtk

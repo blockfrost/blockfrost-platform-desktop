@@ -2,6 +2,10 @@
 result
 result-*
 
+# direnv
+.direnv/
+.envrc.local
+
 # macOS
 .DS_Store
 
