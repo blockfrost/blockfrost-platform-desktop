@@ -107,9 +107,9 @@ func handler(
 
 	if r.Method == http.MethodOptions {
 		// fine
-	} else if r.URL.Path == "/v0" && r.Method == http.MethodGet {
-		http.Redirect(w, r, "/v0/", http.StatusSeeOther)
-	} else if strings.HasPrefix(r.URL.Path, "/v0/") {
+	} else if r.URL.Path == "/api/v0" && r.Method == http.MethodGet {
+		http.Redirect(w, r, "/api/v0/", http.StatusSeeOther)
+	} else if strings.HasPrefix(r.URL.Path, "/api/v0/") {
 		targetUrl := "http://127.0.0.1:-1"
 		for _, svc := range info.Services {
 			if svc.ServiceName == "blockfrost-platform" {
@@ -123,8 +123,8 @@ func handler(
 			return
 		}
 		proxy := httputil.NewSingleHostReverseProxy(target)
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/v0")
-		r.URL.RawPath = strings.TrimPrefix(r.URL.RawPath, "/v0") // if set
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api/v0")
+		r.URL.RawPath = strings.TrimPrefix(r.URL.RawPath, "/api/v0") // if set
 		proxy.ServeHTTP(w, r)
 		return
 	} else if r.URL.Path == "/" && r.Method == http.MethodGet {

@@ -16,11 +16,11 @@
     }
   ],
   "paths": {
-    "/v0": {
+    "/api/v0": {
       "get": {
         "operationId": "b05bfb62-9d83-4a8c-8431-42a737ed4d1e",
         "summary": "Proxy to the Blockfrost platform",
-        "description": "Everything under `/v0/*` will be proxied to the underlying Blockfrost platform.",
+        "description": "Everything under `/api/v0/*` will be proxied to the underlying Blockfrost platform.",
         "tags": ["default"],
         "parameters": [],
         "responses": {
