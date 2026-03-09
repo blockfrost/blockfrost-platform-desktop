@@ -69,29 +69,28 @@ in rec {
     src = ogmiosPatched + "/server";
     modules = [
       ({
-        config,
         lib,
         pkgs,
         ...
       }: {
-        packages.cardano-crypto-praos.components.library.pkgconfig = lib.mkForce [[pkgs.libsodium-vrf]];
-        packages.cardano-crypto-class.components.library.pkgconfig = lib.mkForce [
-          ([pkgs.libsodium-vrf pkgs.secp256k1]
-            ++ (
-              if pkgs ? libblst
-              then [pkgs.libblst]
-              else []
-            ))
-        ];
-        packages.ogmios.components.library.preConfigure = "export GIT_SHA=${inputs.ogmios.rev}";
+        packages = {
+          cardano-crypto-praos.components.library.pkgconfig = lib.mkForce [[pkgs.libsodium-vrf]];
+          cardano-crypto-class.components.library.pkgconfig = lib.mkForce [
+            ([pkgs.libsodium-vrf pkgs.secp256k1]
+              ++ (
+                if pkgs ? libblst
+                then [pkgs.libblst]
+                else []
+              ))
+          ];
+          ogmios.components.library.preConfigure = "export GIT_SHA=${inputs.ogmios.rev}";
+        };
       })
-      ({
-        lib,
-        pkgs,
-        ...
-      }: {
-        packages.entropy.package.buildType = lib.mkForce "Simple";
-        packages.ouroboros-network-framework.doHaddock = false;
+      ({lib, ...}: {
+        packages = {
+          entropy.package.buildType = lib.mkForce "Simple";
+          ouroboros-network-framework.doHaddock = false;
+        };
       })
     ];
   };
@@ -155,22 +154,22 @@ in rec {
     package constants
 
     const (
-      BlockfrostPlatformDesktopVersion = ${__toJSON ourVersion}
-      BlockfrostPlatformDesktopRevision = ${__toJSON (inputs.self.rev or "dirty")}
-      CardanoNodeVersion = ${__toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
-      CardanoNodeRevision = ${__toJSON inputs.cardano-node.rev}
-      BlockfrostPlatformOnly = ${__toJSON blockfrostPlatformOnly}
-      BlockfrostPlatformVersion = ${__toJSON blockfrost-platform.version}
-      BlockfrostPlatformRevision = ${__toJSON inputs.blockfrost-platform.rev}
-      OgmiosVersion = ${__toJSON ogmios.version}
-      OgmiosRevision = ${__toJSON inputs.ogmios.rev}
-      DolosVersion = ${__toJSON dolos.version}
-      DolosRevision = ${__toJSON blockfrostPlatformFlake.inputs.dolos.rev}
-      PostgresVersion = ${__toJSON postgresPackage.version}
-      PostgresRevision = ${__toJSON postgresPackage.version}
-      CardanoJsSdkVersion = ${__toJSON ((__fromJSON (__readFile (inputs.cardano-js-sdk + "/packages/cardano-services/package.json"))).version)}
-      CardanoJsSdkRevision = ${__toJSON inputs.cardano-js-sdk.rev}
-      CardanoJsSdkBuildInfo = ${__toJSON (let
+      BlockfrostPlatformDesktopVersion = ${builtins.toJSON ourVersion}
+      BlockfrostPlatformDesktopRevision = ${builtins.toJSON (inputs.self.rev or "dirty")}
+      CardanoNodeVersion = ${builtins.toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
+      CardanoNodeRevision = ${builtins.toJSON inputs.cardano-node.rev}
+      BlockfrostPlatformOnly = ${builtins.toJSON blockfrostPlatformOnly}
+      BlockfrostPlatformVersion = ${builtins.toJSON blockfrost-platform.version}
+      BlockfrostPlatformRevision = ${builtins.toJSON inputs.blockfrost-platform.rev}
+      OgmiosVersion = ${builtins.toJSON ogmios.version}
+      OgmiosRevision = ${builtins.toJSON inputs.ogmios.rev}
+      DolosVersion = ${builtins.toJSON dolos.version}
+      DolosRevision = ${builtins.toJSON blockfrostPlatformFlake.inputs.dolos.rev}
+      PostgresVersion = ${builtins.toJSON postgresPackage.version}
+      PostgresRevision = ${builtins.toJSON postgresPackage.version}
+      CardanoJsSdkVersion = ${builtins.toJSON (builtins.fromJSON (builtins.readFile (inputs.cardano-js-sdk + "/packages/cardano-services/package.json"))).version}
+      CardanoJsSdkRevision = ${builtins.toJSON inputs.cardano-js-sdk.rev}
+      CardanoJsSdkBuildInfo = ${builtins.toJSON (let
       self = inputs.cardano-js-sdk;
     in
       builtins.toJSON {
@@ -182,20 +181,20 @@ in rec {
           path = self.outPath;
         };
       })}
-      MithrilClientRevision = ${__toJSON inputs.mithril.sourceInfo.rev or "dirty"}
-      MithrilClientVersion = ${__toJSON mithril-bin.version}
-      MithrilGVKPreview = ${__toJSON mithrilGenesisVerificationKeys.preview}
-      MithrilGVKPreprod = ${__toJSON mithrilGenesisVerificationKeys.preprod}
-      MithrilGVKMainnet = ${__toJSON mithrilGenesisVerificationKeys.mainnet}
-      MithrilAVKPreview = ${__toJSON mithrilAncillaryVerificationKeys.preview}
-      MithrilAVKPreprod = ${__toJSON mithrilAncillaryVerificationKeys.preprod}
-      MithrilAVKMainnet = ${__toJSON mithrilAncillaryVerificationKeys.mainnet}
-      MithrilAggregatorPreview = ${__toJSON mithrilAggregator.preview}
-      MithrilAggregatorPreprod = ${__toJSON mithrilAggregator.preprod}
-      MithrilAggregatorMainnet = ${__toJSON mithrilAggregator.mainnet}
-      NetworkStartPreview uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/preview/byron-genesis.json")).startTime}
-      NetworkStartPreprod uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/preprod/byron-genesis.json")).startTime}
-      NetworkStartMainnet uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/mainnet/byron-genesis.json")).startTime}
+      MithrilClientRevision = ${builtins.toJSON inputs.mithril.sourceInfo.rev or "dirty"}
+      MithrilClientVersion = ${builtins.toJSON mithril-bin.version}
+      MithrilGVKPreview = ${builtins.toJSON mithrilGenesisVerificationKeys.preview}
+      MithrilGVKPreprod = ${builtins.toJSON mithrilGenesisVerificationKeys.preprod}
+      MithrilGVKMainnet = ${builtins.toJSON mithrilGenesisVerificationKeys.mainnet}
+      MithrilAVKPreview = ${builtins.toJSON mithrilAncillaryVerificationKeys.preview}
+      MithrilAVKPreprod = ${builtins.toJSON mithrilAncillaryVerificationKeys.preprod}
+      MithrilAVKMainnet = ${builtins.toJSON mithrilAncillaryVerificationKeys.mainnet}
+      MithrilAggregatorPreview = ${builtins.toJSON mithrilAggregator.preview}
+      MithrilAggregatorPreprod = ${builtins.toJSON mithrilAggregator.preprod}
+      MithrilAggregatorMainnet = ${builtins.toJSON mithrilAggregator.mainnet}
+      NetworkStartPreview uint64 = ${builtins.toJSON (builtins.fromJSON (builtins.readFile "${cardano-node-configs}/preview/byron-genesis.json")).startTime}
+      NetworkStartPreprod uint64 = ${builtins.toJSON (builtins.fromJSON (builtins.readFile "${cardano-node-configs}/preprod/byron-genesis.json")).startTime}
+      NetworkStartMainnet uint64 = ${builtins.toJSON (builtins.fromJSON (builtins.readFile "${cardano-node-configs}/mainnet/byron-genesis.json")).startTime}
     )
   '';
 
@@ -288,7 +287,7 @@ in rec {
 
   # FIXME: build from source (Linux, and Darwins are available in their flake.nix, but Windows not)
   mithril-bin = let
-    ver = (__fromJSON (__readFile (inputs.self + "/flake.lock"))).nodes.mithril.original.ref or "unknown-ref";
+    ver = (builtins.fromJSON (builtins.readFile (inputs.self + "/flake.lock"))).nodes.mithril.original.ref or "unknown-ref";
   in
     {
       x86_64-linux = mithrilFlake.packages.${targetSystem}.mithril-client-cli;
@@ -304,7 +303,7 @@ in rec {
     }
     // {version = ver;};
 
-  dolos = blockfrostPlatformFlake.internal.${targetSystem}.dolos;
+  inherit (blockfrostPlatformFlake.internal.${targetSystem}) dolos;
 
   # Aligned with blockfrost-platform's nix/internal/unix.nix `dolos-configs`:
   dolos-configs = let
@@ -317,9 +316,7 @@ in rec {
     };
 
     mkConfig = network: let
-      topology = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/topology.json");
       byronGenesis = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/byron-genesis.json");
-      peerAddr = let first = lib.head topology.bootstrapPeers; in "${first.address}:${toString first.port}";
       magic = toString byronGenesis.protocolConsts.protocolMagic;
     in
       pkgs.writeText "dolos.toml" (''
@@ -380,7 +377,7 @@ in rec {
     '';
 
   ui = rec {
-    nodejs = pkgs.nodejs;
+    inherit (pkgs) nodejs;
 
     yarn = pkgs.yarn.override {inherit nodejs;};
 
@@ -395,7 +392,7 @@ in rec {
     lockfiles = pkgs.lib.cleanSourceWith {
       src = uiSrc;
       name = "ui-lockfiles";
-      filter = name: type: let b = baseNameOf (toString name); in (b == "package.json" || b == "yarn.lock");
+      filter = name: _type: let b = baseNameOf (toString name); in b == "package.json" || b == "yarn.lock";
     };
 
     favicons =

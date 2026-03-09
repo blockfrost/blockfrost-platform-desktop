@@ -101,7 +101,7 @@ in rec {
       buildCommand =
         builtins.replaceStrings ["find '"] ["find -L '"] drv.buildCommand
         + ''
-          for base in ${lib.escapeShellArgs (__attrNames exes)} ; do
+          for base in ${lib.escapeShellArgs (builtins.attrNames exes)} ; do
             if ${with pkgs; lib.getExe file} "$out/bin/$base" | cut -d: -f2 | grep -i 'shell script' >/dev/null ; then
               # dynamic linking:
               ${with pkgs; lib.getExe patchelf} --set-rpath '$ORIGIN' $out/exe/"$base"
@@ -144,7 +144,7 @@ in rec {
           inherit pkgs;
           inherit bin_dir exe_dir lib_dir;
         }
-        unbundled).overrideAttrs (drv: {
+        unbundled).overrideAttrs (_drv: {
         inherit bin_dir exe_dir lib_dir;
         buildCommand = ''
           mkdir -p $out/${lib_dir}
@@ -313,14 +313,14 @@ in rec {
   # XXX: Be *super careful* changing this!!! You WILL DELETE user data if you make a mistake. Ping @michalrus
   selfExtractingArchive = let
     scriptTemplate =
-      __replaceStrings [
+      builtins.replaceStrings [
         "@UGLY_NAME@"
         "@PRETTY_NAME@"
       ] [
         (lib.escapeShellArg "blockfrost-platform-desktop")
         (lib.escapeShellArg common.prettyName)
-      ] (__readFile ./linux-self-extracting-archive.sh);
-    script = __replaceStrings ["1010101010"] [(toString (1000000000 + __stringLength scriptTemplate))] scriptTemplate;
+      ] (builtins.readFile ./linux-self-extracting-archive.sh);
+    script = builtins.replaceStrings ["1010101010"] [(toString (1000000000 + builtins.stringLength scriptTemplate))] scriptTemplate;
     revShort =
       if inputs.self ? shortRev
       then builtins.substring 0 9 inputs.self.rev

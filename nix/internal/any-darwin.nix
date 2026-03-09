@@ -2,7 +2,7 @@
   inputs,
   targetSystem,
 }:
-assert __elem targetSystem ["aarch64-darwin" "x86_64-darwin"]; let
+assert builtins.elem targetSystem ["aarch64-darwin" "x86_64-darwin"]; let
   pkgs = inputs.nixpkgs.legacyPackages.${targetSystem};
   inherit (pkgs) lib;
 in rec {
@@ -191,9 +191,7 @@ in rec {
     name = common.codeName;
     src = common.coreSrc;
     vendorHash = common.blockfrost-platform-desktop-exe-vendorHash;
-    buildInputs =
-      (with pkgs; [])
-      ++ (with pkgs.darwin.apple_sdk_11_0.frameworks; [Cocoa WebKit UniformTypeIdentifiers]);
+    buildInputs = with pkgs.darwin.apple_sdk_11_0.frameworks; [Cocoa WebKit UniformTypeIdentifiers];
     overrideModAttrs = oldAttrs: {
       buildInputs = (oldAttrs.buildInputs or []) ++ buildInputs;
     };
@@ -338,7 +336,7 @@ in rec {
           inherit pkgs;
           inherit bin_dir exe_dir lib_dir;
         }
-        unbundled).overrideAttrs (drv: {
+        unbundled).overrideAttrs (_drv: {
         inherit bin_dir exe_dir lib_dir;
         buildCommand = ''
           mkdir -p $out/${lib_dir}
@@ -534,52 +532,49 @@ in rec {
     codeSigningConfig = "/var/lib/buildkite-agent-default/code-signing-config.json";
     signingConfig = "/var/lib/buildkite-agent-default/signing-config.json";
     # See <https://dmgbuild.readthedocs.io/en/latest/settings.html>:
-    settingsPy = let
-      s = lib.escapeShellArg;
-    in
-      pkgs.writeText "settings.py" ''
-        import os.path
+    settingsPy = pkgs.writeText "settings.py" ''
+      import os.path
 
-        app_path = defines.get("app_path", "/non-existent.app")
-        icon_path = defines.get("icon_path", "/non-existent.icns")
-        app_name = os.path.basename(app_path)
+      app_path = defines.get("app_path", "/non-existent.app")
+      icon_path = defines.get("icon_path", "/non-existent.icns")
+      app_name = os.path.basename(app_path)
 
-        # UDBZ (bzip2) is 154 MiB, while UDZO (gzip) is 204 MiB
-        format = "UDBZ"
-        size = None
-        files = [app_path]
-        symlinks = {"Applications": "/Applications"}
-        hide_extension = [ app_name ]
+      # UDBZ (bzip2) is 154 MiB, while UDZO (gzip) is 204 MiB
+      format = "UDBZ"
+      size = None
+      files = [app_path]
+      symlinks = {"Applications": "/Applications"}
+      hide_extension = [ app_name ]
 
-        icon = icon_path
+      icon = icon_path
 
-        icon_locations = {app_name: (140, 120), "Applications": (500, 120)}
-        background = "builtin-arrow"
+      icon_locations = {app_name: (140, 120), "Applications": (500, 120)}
+      background = "builtin-arrow"
 
-        show_status_bar = False
-        show_tab_view = False
-        show_toolbar = False
-        show_pathbar = False
-        show_sidebar = False
-        sidebar_width = 180
+      show_status_bar = False
+      show_tab_view = False
+      show_toolbar = False
+      show_pathbar = False
+      show_sidebar = False
+      sidebar_width = 180
 
-        window_rect = ((200, 200), (640, 320))
-        default_view = "icon-view"
-        show_icon_preview = False
+      window_rect = ((200, 200), (640, 320))
+      default_view = "icon-view"
+      show_icon_preview = False
 
-        include_icon_view_settings = "auto"
-        include_list_view_settings = "auto"
+      include_icon_view_settings = "auto"
+      include_list_view_settings = "auto"
 
-        arrange_by = None
-        grid_offset = (0, 0)
-        grid_spacing = 100
-        scroll_position = (0, 0)
-        label_pos = "bottom"  # or 'right'
-        text_size = 16
-        icon_size = 128
+      arrange_by = None
+      grid_offset = (0, 0)
+      grid_spacing = 100
+      scroll_position = (0, 0)
+      label_pos = "bottom"  # or 'right'
+      text_size = 16
+      icon_size = 128
 
-        # license = { … }
-      '';
+      # license = { … }
+    '';
     packAndSign = pkgs.writeShellApplication {
       name = "pack-and-sign";
       runtimeInputs = with pkgs; [bash coreutils jq];

@@ -4,18 +4,12 @@
 }: let
   pkgs = inputs.nixpkgs.legacyPackages.${buildSystem};
   inherit (pkgs) lib;
-  inherit (inputs.devshell.legacyPackages.${buildSystem}) mkShell;
 in {
   default = pkgs.mkShell {
     packages = with pkgs;
       [
         go
         gopls
-        # FIXME:
-        (pkgs.writeShellApplication {
-          name = "nixlint";
-          text = ":";
-        })
         inputs.self.formatter.${pkgs.system}
       ]
       ++ lib.optionals pkgs.stdenv.isLinux [
@@ -41,7 +35,7 @@ in {
 
     # FIXME: numtide/devshell doesn’t set proper stdenv, so `go build` doesn’t work:
 
-    future = mkShell {
+    future = inputs.devshell.legacyPackages.${buildSystem}.mkShell {
       name = "blockfrost-platform-desktop";
 
       imports = ["${inputs.devshell}/extra/language/c.nix"];

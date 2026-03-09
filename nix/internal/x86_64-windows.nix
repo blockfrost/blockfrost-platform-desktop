@@ -29,7 +29,7 @@ in rec {
   blockfrost-platform-desktop-exe = let
     noConsoleWindow = true;
     go = patchedGo;
-    goModules = inputs.self.internal.x86_64-linux.blockfrost-platform-desktop-exe.goModules;
+    inherit (inputs.self.internal.x86_64-linux.blockfrost-platform-desktop-exe) goModules;
   in
     pkgs.pkgsCross.mingwW64.stdenv.mkDerivation {
       name = common.codeName;
@@ -458,7 +458,7 @@ in rec {
     # we’ll call specific "install" scripts manually inside Wine.
     #
     # One improvement would be to skip building the Linux binaries altogether here.
-    theirNodeModules = theirPackage.overrideAttrs (drv: {
+    theirNodeModules = theirPackage.overrideAttrs (_drv: {
       name = "cardano-js-sdk-node_modules";
       buildPhase = ":";
       installPhase = ''
@@ -519,7 +519,7 @@ in rec {
     # XXX: `pkgs.nodejs` lacks `uv/win.h`, `node.lib` etc., so:
     nodejsHeaders =
       pkgs.runCommand "nodejs-headers-${theirPackage.nodejs.version}" rec {
-        version = theirPackage.nodejs.version;
+        inherit (theirPackage.nodejs) version;
         src = pkgs.fetchurl {
           url = "https://nodejs.org/dist/v${version}/node-v${version}-headers.tar.gz";
           hash = "sha256-jHLwhhI3cxo+KSpL4rals8D1EUr+OjoCtfrTXXs7LMI=";
@@ -735,7 +735,7 @@ in rec {
       '';
     };
 
-    target = rec {
+    target = {
       nodejs = pkgs.fetchzip {
         url = "https://nodejs.org/dist/v${theirPackage.nodejs.version}/node-v${theirPackage.nodejs.version}-win-x64.zip";
         hash = "sha256-TDSBxDq2VtUCzVQC7wfdKd9l4eAuK30/dNCMN/L6JIQ=";
@@ -870,11 +870,11 @@ in rec {
       rmdir $out/"$topdir"
     '';
 
-  ui = rec {
+  ui = {
     # They’re initially the same as Linux when cross-compiling for Windows:
-    node_modules = inputs.self.internal.x86_64-linux.ui.node_modules;
+    inherit (inputs.self.internal.x86_64-linux.ui) node_modules;
 
     # So far we don’t have anything special on Windows, let's just use the Linux build:
-    dist = inputs.self.internal.x86_64-linux.ui.dist;
+    inherit (inputs.self.internal.x86_64-linux.ui) dist;
   };
 }

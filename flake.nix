@@ -68,7 +68,7 @@
         packages =
           {
             default = internal.package;
-            installer = internal.installer;
+            inherit (internal) installer;
           }
           // (
             if system == "x86_64-linux"
