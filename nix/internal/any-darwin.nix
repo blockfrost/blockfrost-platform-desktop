@@ -484,9 +484,9 @@ in rec {
 
   make-dmg = {doSign ? false}: let
     outFileName = "${common.codeName}-${common.ourVersion}-${revShort}-${targetSystem}.dmg";
-    credentials = "/var/lib/buildkite-agent/signing.sh";
-    codeSigningConfig = "/var/lib/buildkite-agent/code-signing-config.json";
-    signingConfig = "/var/lib/buildkite-agent/signing-config.json";
+    credentials = "/var/lib/buildkite-agent-default/signing.sh";
+    codeSigningConfig = "/var/lib/buildkite-agent-default/code-signing-config.json";
+    signingConfig = "/var/lib/buildkite-agent-default/signing-config.json";
     # See <https://dmgbuild.readthedocs.io/en/latest/settings.html>:
     settingsPy = let s = lib.escapeShellArg; in pkgs.writeText "settings.py" ''
       import os.path
@@ -606,7 +606,7 @@ in rec {
         ${
           if doSign
           then ''
-            # FIXME: this doesn’t work outside of `buildkite-agent`, it seems:
+            # FIXME: this doesn’t work outside of `buildkite-agent-default`, it seems:
             #(
             #  source ${credentials}
             #  security unlock-keychain -p "$SIGNING" "$signingKeyChain"
@@ -649,7 +649,7 @@ in rec {
         ${
           if doSign
           then ''
-            exec sudo -u buildkite-agent \
+            exec sudo -u buildkite-agent-default \
               "NOTARY_USER=''${NOTARY_USER:-}" \
               "NOTARY_PASSWORD=''${NOTARY_PASSWORD:-}" \
               "NOTARY_TEAM_ID=''${NOTARY_TEAM_ID:-}" \
