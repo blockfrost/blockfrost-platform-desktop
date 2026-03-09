@@ -343,9 +343,9 @@ func SetupTray(
 	go func() {
 		// Calculate these? How?
 		eta := map[string](string) {
-			"preview": "about 5 minutes",
-			"preprod": "about 5 minutes",
-			"mainnet": "about 2 hours",
+			"preview": "about 3-4 hours",
+			"preprod": "about 3-4 hours",
+			"mainnet": "about 18-22 hours",
 		}
 		_ = eta
 		for range mResyncMithril.ClickedCh {
