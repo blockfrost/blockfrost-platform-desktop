@@ -320,7 +320,8 @@
         "nix-bundle-exe": "nix-bundle-exe",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-webkitgtk": "nixpkgs-webkitgtk",
-        "ogmios": "ogmios"
+        "ogmios": "ogmios",
+        "treefmt-nix": "treefmt-nix_2"
       }
     },
     "treefmt-nix": {
@@ -336,6 +337,26 @@
         "owner": "numtide",
         "repo": "treefmt-nix",
         "rev": "763f1ce0dd12fe44ce6a5c6ea3f159d438571874",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "treefmt-nix_2": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1772660329,
+        "narHash": "sha256-IjU1FxYqm+VDe5qIOxoW+pISBlGvVApRjiw/Y/ttJzY=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "3710e0e1218041bbad640352a0440114b1e10428",
         "type": "github"
       },
       "original": {

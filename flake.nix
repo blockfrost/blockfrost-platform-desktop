@@ -44,6 +44,11 @@
     nix-bundle-exe.url = "github:3noch/nix-bundle-exe";
     nix-bundle-exe.flake = false;
 
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     devshell.url = "github:numtide/devshell";
     devshell.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -52,6 +57,10 @@
     inherit (inputs.nixpkgs) lib;
   in
     inputs.flake-parts.lib.mkFlake {inherit inputs;} ({config, ...}: {
+      imports = [
+        inputs.treefmt-nix.flakeModule
+      ];
+
       systems = ["x86_64-linux" "x86_64-darwin" "aarch64-darwin"];
 
       perSystem = {system, ...}: let
@@ -73,6 +82,19 @@
             else {}
           );
         devShells = import ./nix/devshells.nix {inherit inputs; buildSystem = system;};
+
+        treefmt = {
+          projectRootFile = "flake.nix";
+          programs = {
+            alejandra.enable = true; # Nix
+            clang-format.enable = true;
+            gofumpt.enable = true; # Go
+            shfmt.enable = true; # Shell
+            prettier.enable = true; # Shell
+          };
+          settings.global.excludes = [
+          ];
+        };
       };
 
       flake = let

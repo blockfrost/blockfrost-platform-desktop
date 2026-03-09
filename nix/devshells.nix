@@ -13,9 +13,8 @@ in {
       go
       gopls
       # FIXME:
-      (pkgs.writeShellApplication {name = "treefmt"; text = ":";})
-      # FIXME:
       (pkgs.writeShellApplication {name = "nixlint"; text = ":";})
+      inputs.self.formatter.${pkgs.system}
     ] ++ lib.optionals pkgs.stdenv.isLinux [
       pkg-config
       inputs.self.internal.${buildSystem}.webkit2gtk
