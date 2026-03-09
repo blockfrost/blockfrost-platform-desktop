@@ -347,7 +347,7 @@ in rec {
   in
     pkgs.writeShellApplication {
       name = "pack-and-sign";
-      runtimeInputs = with pkgs; [bash coreutils nsis];
+      runtimeInputs = with pkgs; [bash coreutils pkgs.nsis];
       runtimeEnv = {
         inherit outFileName;
       };
@@ -395,7 +395,7 @@ in rec {
 
   uninstaller =
     pkgs.runCommandNoCC "uninstaller" {
-      buildInputs = [nsis pkgs.wine];
+      buildInputs = [pkgs.nsis pkgs.wine];
       projectName = common.prettyName;
       projectCodeName = common.codeName;
       projectVersion = common.ourVersion;
@@ -409,8 +409,6 @@ in rec {
       mkdir $out
       mv $HOME/.wine/drive_c/uninstall.exe $out/uninstall.exe
     '';
-
-  nsis = import ./nsis.nix { nsisNixpkgs = inputs.nixpkgs-nsis; };
 
   resourceHacker = pkgs.fetchzip {
     name = "resource-hacker-5.1.7";
