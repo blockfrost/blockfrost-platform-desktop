@@ -132,7 +132,7 @@ func childProcessPTYWindows(
 		cptyEnv = conpty.ConPtyEnv(&envBlock[0])
 	}
 
-	cpty, err := conpty.Start(cmdLine, cptyEnv)
+	cpty, err := conpty.Start(cmdLine, conpty.ConPtyDimensions(200, 25), cptyEnv)
 	if err != nil {
 		outputLines <- fmt.Sprintf("fatal: %v", err)
 		return
