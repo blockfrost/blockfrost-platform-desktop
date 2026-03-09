@@ -25,7 +25,7 @@
 
     blockfrost-platform = {
       # FIXME: update to `main` when this is merged:
-      url = "github:blockfrost/blockfrost-platform/pull/467/head";
+      url = "github:blockfrost/blockfrost-platform/pull/471/head";
       flake = false; # to prevent lockfile explosion
     };
 
