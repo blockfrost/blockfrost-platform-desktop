@@ -3,8 +3,10 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
 
-    # FIXME: Linux’ `webkitgtk_4_1` 2.48 (from `nixos-25.05`) has a white-screen
-    # bug when used with Wails v3. For now, let’s pin it to the last known-good
+    flake-parts.url = "github:hercules-ci/flake-parts";
+
+    # FIXME: Linux' `webkitgtk_4_1` 2.48 (from `nixos-25.05`) has a white-screen
+    # bug when used with Wails v3. For now, let's pin it to the last known-good
     # version (2.44.3) from the old Nixpkgs:
     nixpkgs-webkitgtk.url = "github:nixos/nixpkgs/nixpkgs-24.05-darwin"; #893e9c69f3324ae99e87f1e8e49014c3c0ab12cf
     nixpkgs-webkitgtk.flake = false; # only used for webkitgtk_4_1
@@ -47,45 +49,58 @@
   };
 
   outputs = inputs: let
-    supportedSystem = ["x86_64-linux" "x86_64-darwin" "aarch64-darwin"];
     inherit (inputs.nixpkgs) lib;
-  in {
-    packages = lib.genAttrs supportedSystem (buildSystem:
-      import ./nix/packages.nix { inherit inputs buildSystem; }
-    );
+  in
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} ({config, ...}: {
+      systems = ["x86_64-linux" "x86_64-darwin" "aarch64-darwin"];
 
-    internal = import ./nix/internal.nix { inherit inputs; };
-
-    devShells = lib.genAttrs supportedSystem (buildSystem:
-      import ./nix/devshells.nix { inherit inputs buildSystem; }
-    );
-
-    hydraJobs = {
-      installer = {
-        x86_64-linux   = inputs.self.packages.x86_64-linux.installer;
-        x86_64-darwin  = inputs.self.packages.x86_64-darwin.installer;
-        aarch64-darwin  = inputs.self.packages.aarch64-darwin.installer;
-        x86_64-windows = inputs.self.packages.x86_64-linux.installer-x86_64-windows;
+      perSystem = {system, ...}: let
+        internal = inputs.self.internal.${system};
+      in {
+        packages =
+          {
+            default = internal.package;
+            installer = internal.installer;
+          }
+          // (
+            if system == "x86_64-linux"
+            then let
+              win = inputs.self.internal.x86_64-windows;
+            in {
+              default-x86_64-windows = win.package;
+              installer-x86_64-windows = win.installer;
+            }
+            else {}
+          );
+        devShells = import ./nix/devshells.nix {inherit inputs; buildSystem = system;};
       };
 
-      package = {
-        x86_64-linux   = inputs.self.packages.x86_64-linux.default;
-        x86_64-darwin  = inputs.self.packages.x86_64-darwin.default;
-        aarch64-darwin  = inputs.self.packages.aarch64-darwin.default;
-        x86_64-windows = inputs.self.packages.x86_64-linux.default-x86_64-windows;
+      flake = let
+        crossSystems = ["x86_64-windows"];
+      in {
+        internal = import ./nix/internal.nix {inherit inputs;};
+
+        hydraJobs = let
+          allJobs = {
+            installer = lib.genAttrs (config.systems ++ crossSystems) (
+              targetSystem: inputs.self.internal.${targetSystem}.installer
+            );
+            package = lib.genAttrs (config.systems ++ crossSystems) (
+              targetSystem: inputs.self.internal.${targetSystem}.package
+            );
+            devShell = lib.genAttrs config.systems (
+              targetSystem: inputs.self.devShells.${targetSystem}.default
+            );
+          };
+        in
+          allJobs
+          // {
+            required = inputs.nixpkgs.legacyPackages.x86_64-linux.releaseTools.aggregate {
+              name = "github-required";
+              meta.description = "All jobs required to pass CI";
+              constituents = lib.collect lib.isDerivation allJobs;
+            };
+          };
       };
-
-      inherit (inputs.self) devShells;
-
-      required = inputs.nixpkgs.legacyPackages.x86_64-linux.releaseTools.aggregate {
-        name = "github-required";
-        meta.description = "All jobs required to pass CI";
-        constituents =
-          __attrValues inputs.self.hydraJobs.installer ++
-          __attrValues inputs.self.hydraJobs.package ++
-          map (a: a.default) (__attrValues inputs.self.hydraJobs.devShells);
-      };
-    };
-  };
-
+    });
 }
