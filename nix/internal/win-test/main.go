@@ -40,10 +40,12 @@ func parent() {
 
 	var cmd *exec.Cmd
 	cmd = exec.Command(executablePath, sInheritedHandle)
-	cmd.Env = append(os.Environ(), ChildEnvVar + "=true")
+	cmd.Env = append(os.Environ(), ChildEnvVar+"=true")
 
 	childStdout, err := cmd.StdoutPipe()
-	if err != nil {	panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	go func() {
 		scanner := bufio.NewScanner(childStdout)
 		for scanner.Scan() {
@@ -52,7 +54,9 @@ func parent() {
 	}()
 
 	childStderr, err := cmd.StderrPipe()
-	if err != nil {	panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	go func() {
 		scanner := bufio.NewScanner(childStderr)
 		for scanner.Scan() {
@@ -84,7 +88,9 @@ func parent() {
 
 	err = cmd.Start()
 	inheritedPipe.Close()
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 
 	fmt.Printf("parent: writing to child...\n")
 	fmt.Fprintf(sharedWriter, "hello, world\n")
@@ -106,7 +112,9 @@ func child() {
 	// sInheritedHandle := os.Args[1]
 	// inheritedHandle, err := strconv.ParseUint(sInheritedHandle, 10, 64)
 	inheritedHandle, err := _get_osfhandle(3)
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("child: got inherited fd=%d\n", inheritedHandle)
 
 	inheritedPipe := os.NewFile(uintptr(inheritedHandle), "")

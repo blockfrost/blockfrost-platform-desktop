@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package main
@@ -8,8 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"strings"
+	"syscall"
 	"time"
 
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
@@ -57,7 +58,7 @@ func windowsSendCtrlBreak(pid int) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// XXX: if we don’t create a new console for sigbreak.exe, the signal not always lands
 		CreationFlags: 0x00000010, // CREATE_NEW_CONSOLE not defined in syscall.*
-		HideWindow: true,
+		HideWindow:    true,
 	}
 	err := cmd.Run()
 	if err != nil {
@@ -138,18 +139,18 @@ func childProcessPTYWindows(
 		return
 	}
 
-	process, err :=	os.FindProcess(int(cpty.GetPid()))
+	process, err := os.FindProcess(int(cpty.GetPid()))
 	if err != nil {
 		// can’t happen
 		outputLines <- fmt.Sprintf("fatal: os.FindProcess: %v", err)
 		return
 	}
 
-	//defer cpty.Close()
-	//defer cpty.Wait(context.Background())
+	// defer cpty.Close()
+	// defer cpty.Wait(context.Background())
 
 	// XXX: cpty handles aren’t closed (they’re pipes) automatically when the command exits, so let’s do this:
-	go func(){
+	go func() {
 		_, err := cpty.Wait(context.Background())
 		if err != nil {
 			outputLines <- fmt.Sprintf("fatal: error during cpty.Wait(): %v", err)
@@ -159,26 +160,28 @@ func childProcessPTYWindows(
 
 	waitDone := make(chan struct{})
 
-	if (pid != nil) {
+	if pid != nil {
 		*pid = process.Pid
 	}
 
 	go func() {
-		defer func(){
+		defer func() {
 			waitDone <- struct{}{}
 		}()
 		buf := make([]byte, 1024)
 		for {
 			num, err := cpty.Read(buf)
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 
 			lines := string(buf[:num])
 			lines = stripansi.Strip(lines)
-			lines =	strings.ReplaceAll(lines, string(rune(0x07)), "")  // remove bells
+			lines = strings.ReplaceAll(lines, string(rune(0x07)), "") // remove bells
 
 			// XXX: it’s possible that 2+ TTY updates will be clumped together in a single ‘read’, so:
 			for _, line := range strings.FieldsFunc(lines, func(c rune) bool {
-				return (c == '\n' || c == '\r' || c == rune(0x08))  // 0x08 for Windows
+				return (c == '\n' || c == '\r' || c == rune(0x08)) // 0x08 for Windows
 			}) {
 				if len(line) > 0 {
 					line = logModifier(line)

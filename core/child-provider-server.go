@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"runtime"
 	"time"
-	"net/url"
 
 	"blockfrost.io/blockfrost-platform-desktop/constants"
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
@@ -25,9 +25,9 @@ func childProviderServer(shared SharedState, statusCh chan<- StatusAndUrl) Manag
 
 	return ManagedChild{
 		ServiceName: serviceName,
-		ExePath: ourpaths.LibexecDir + sep + "nodejs" + sep + "node" + ourpaths.ExeSuffix,
-		Version: constants.CardanoJsSdkVersion,
-		Revision: constants.CardanoJsSdkRevision,
+		ExePath:     ourpaths.LibexecDir + sep + "nodejs" + sep + "node" + ourpaths.ExeSuffix,
+		Version:     constants.CardanoJsSdkVersion,
+		Revision:    constants.CardanoJsSdkRevision,
 		MkArgv: func() ([]string, error) {
 			cjsPrefix := sep + "cjs"
 			if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
@@ -71,36 +71,36 @@ func childProviderServer(shared SharedState, statusCh chan<- StatusAndUrl) Manag
 				"BUILD_INFO=" + constants.CardanoJsSdkBuildInfo,
 			}
 		},
-		PostStart: func() error { return nil },
+		PostStart:   func() error { return nil },
 		AllocatePTY: false,
-		StatusCh: statusCh,
+		StatusCh:    statusCh,
 		HealthProbe: func(prev HealthStatus) HealthStatus {
 			backendUrl := fmt.Sprintf("http://127.0.0.1:%d",
 				providerServerPort)
-			err := probeHttp200(backendUrl + "/v1.0.0/health", 1 * time.Second)
+			err := probeHttp200(backendUrl+"/v1.0.0/health", 1*time.Second)
 			nextProbeIn := 1 * time.Second
-			if (err == nil) {
-				statusCh <- StatusAndUrl {
-					Status: "listening",
-					Progress: -1,
-					TaskSize: -1,
+			if err == nil {
+				statusCh <- StatusAndUrl{
+					Status:      "listening",
+					Progress:    -1,
+					TaskSize:    -1,
 					SecondsLeft: -1,
-					Url: backendUrl,
-					OmitUrl: false,
+					Url:         backendUrl,
+					OmitUrl:     false,
 				}
 				nextProbeIn = 60 * time.Second
 			}
-			return HealthStatus {
+			return HealthStatus{
 				Initialized: err == nil,
-				DoRestart: false,
+				DoRestart:   false,
 				NextProbeIn: nextProbeIn,
-				LastErr: err,
+				LastErr:     err,
 			}
 		},
-		LogMonitor: func(line string) {},
-		LogModifier: func(line string) string { return line },
+		LogMonitor:                        func(line string) {},
+		LogModifier:                       func(line string) string { return line },
 		TerminateGracefullyByInheritedFd3: false,
-		ForceKillAfter: 5 * time.Second,
-		PostStop: func() error { return nil },
+		ForceKillAfter:                    5 * time.Second,
+		PostStop:                          func() error { return nil },
 	}
 }

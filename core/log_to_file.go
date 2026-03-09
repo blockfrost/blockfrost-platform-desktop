@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
-	"sync"
-	"bufio"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/acarl005/stripansi"
@@ -16,13 +16,13 @@ func duplicateOutputToFile(logFile string) func() {
 	originalStderr := os.Stderr
 
 	newLine := "\n"
-	if (runtime.GOOS == "windows") {
+	if runtime.GOOS == "windows" {
 		newLine = "\r\n"
 	}
 
 	fp, err := os.Create(logFile)
 	if err != nil {
-	    panic(err)
+		panic(err)
 	}
 
 	introLine := "-- Log begins at " + time.Now().UTC().Format("Mon 2006-01-02 15:04:05") + " UTC. --"
@@ -31,13 +31,13 @@ func duplicateOutputToFile(logFile string) func() {
 
 	newStdoutR, newStdoutW, err := os.Pipe()
 	if err != nil {
-	    panic(err)
+		panic(err)
 	}
 	os.Stdout = newStdoutW
 
 	newStderrR, newStderrW, err := os.Pipe()
 	if err != nil {
-	    panic(err)
+		panic(err)
 	}
 	os.Stderr = newStderrW
 
@@ -50,8 +50,8 @@ func duplicateOutputToFile(logFile string) func() {
 
 	type LogLine struct {
 		timestamp string
-		isStderr bool
-		msg string
+		isStderr  bool
+		msg       string
 	}
 
 	lines := make(chan LogLine)
@@ -59,7 +59,7 @@ func duplicateOutputToFile(logFile string) func() {
 	go func() {
 		scanner := bufio.NewScanner(newStdoutR)
 		for scanner.Scan() {
-			lines <- LogLine { timestamp: logTime(), isStderr: false, msg: scanner.Text() }
+			lines <- LogLine{timestamp: logTime(), isStderr: false, msg: scanner.Text()}
 		}
 		wgScanners.Done()
 	}()
@@ -67,7 +67,7 @@ func duplicateOutputToFile(logFile string) func() {
 	go func() {
 		scanner := bufio.NewScanner(newStderrR)
 		for scanner.Scan() {
-			lines <- LogLine { timestamp: logTime(), isStderr: true, msg: scanner.Text() }
+			lines <- LogLine{timestamp: logTime(), isStderr: true, msg: scanner.Text()}
 		}
 		wgScanners.Done()
 	}()
@@ -90,7 +90,7 @@ func duplicateOutputToFile(logFile string) func() {
 	}()
 
 	// Wait, making sure that everything is indeed written before exiting:
-	closeOutputs := func(){
+	closeOutputs := func() {
 		newStdoutW.Close()
 		newStderrW.Close()
 		os.Stdout = originalStdout

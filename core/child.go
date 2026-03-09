@@ -1,44 +1,44 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
-	"sync"
-	"bufio"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
+	"sync"
 	"sync/atomic"
+	"syscall"
+	"time"
 
-	t "blockfrost.io/blockfrost-platform-desktop/types"
-	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
 	"blockfrost.io/blockfrost-platform-desktop/appconfig"
 	"blockfrost.io/blockfrost-platform-desktop/constants"
+	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
+	t "blockfrost.io/blockfrost-platform-desktop/types"
 
-	"github.com/creack/pty"
 	"github.com/acarl005/stripansi"
+	"github.com/creack/pty"
 )
 
 type ManagedChild struct {
-	ServiceName string
-	ExePath     string
-	Version     string
-	Revision    string
-	MkArgv      func() ([]string, error) // XXX: it’s a func to run `getFreeTCPPort()` at the very last moment
-	MkExtraEnv  func() []string
-	PostStart   func() error
-	AllocatePTY bool
-	StatusCh    chan<- StatusAndUrl
-	HealthProbe func(HealthStatus) HealthStatus // the argument is the previous HealthStatus
-	LogMonitor  func(string)
-	LogModifier func(string) string // e.g. to drop redundant timestamps
-	TerminateGracefullyByInheritedFd3 bool // <https://github.com/input-output-hk/cardano-node/issues/726>
-	OpenFileLimit int // if > 0, wrap child in a shell that sets RLIMIT_NOFILE to this value
-	ForceKillAfter time.Duration // graceful exit timeout, after which we SIGKILL the child
-	PostStop    func() error
+	ServiceName                       string
+	ExePath                           string
+	Version                           string
+	Revision                          string
+	MkArgv                            func() ([]string, error) // XXX: it’s a func to run `getFreeTCPPort()` at the very last moment
+	MkExtraEnv                        func() []string
+	PostStart                         func() error
+	AllocatePTY                       bool
+	StatusCh                          chan<- StatusAndUrl
+	HealthProbe                       func(HealthStatus) HealthStatus // the argument is the previous HealthStatus
+	LogMonitor                        func(string)
+	LogModifier                       func(string) string // e.g. to drop redundant timestamps
+	TerminateGracefullyByInheritedFd3 bool                // <https://github.com/input-output-hk/cardano-node/issues/726>
+	OpenFileLimit                     int                 // if > 0, wrap child in a shell that sets RLIMIT_NOFILE to this value
+	ForceKillAfter                    time.Duration       // graceful exit timeout, after which we SIGKILL the child
+	PostStop                          func() error
 }
 
 type StatusAndUrl struct {
@@ -52,25 +52,25 @@ type StatusAndUrl struct {
 
 type HealthStatus struct {
 	Initialized bool          // whether to continue with launching other dependant processes
-	DoRestart bool            // restart everything (even before it's considered initialized)
+	DoRestart   bool          // restart everything (even before it's considered initialized)
 	NextProbeIn time.Duration // when to schedule the next HealthProbe
-	LastErr error
+	LastErr     error
 }
 
 type SharedState struct {
-	Network string
-	NetworkStartTime uint64 // UNIX timestamp [s]
-	SyncProgress *float64  // XXX: we take that from Ogmios, we should probably calculate ourselves?
-	CardanoNodeConfigDir string
-	CardanoNodeSocket string
-	CardanoNodePort *int
-	CardanoSubmitApiPort *int
-	OgmiosPort *int
+	Network                string
+	NetworkStartTime       uint64   // UNIX timestamp [s]
+	SyncProgress           *float64 // XXX: we take that from Ogmios, we should probably calculate ourselves?
+	CardanoNodeConfigDir   string
+	CardanoNodeSocket      string
+	CardanoNodePort        *int
+	CardanoSubmitApiPort   *int
+	OgmiosPort             *int
 	BlockfrostPlatformPort *int
-	DolosPort *int
-	PostgresPort *int
-	PostgresPassword *string
-	MithrilCachePort int
+	DolosPort              *int
+	PostgresPort           *int
+	PostgresPassword       *string
+	MithrilCachePort       int
 }
 
 func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mithrilCachePort int) {
@@ -85,341 +85,348 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 	keepGoing := true
 
 	// XXX: we nest a function here, so that we can defer cleanups, and return early on errors etc.
-	for keepGoing { func() {
-		if !firstIteration && !omitSleep {
-			time.Sleep(5 * time.Second)
-		}
-		firstIteration = false
-		omitSleep = false
-		comm.BlockRestartUI <- false
-
-		if !runMithril {
-			fmt.Printf("%s[%d]: starting session for network %s\n", OurLogPrefix, os.Getpid(), network)
-		} else {
-			fmt.Printf("%s[%d]: resyncing with Mithril for network %s\n", OurLogPrefix, os.Getpid(),
-				network)
-		}
-
-		var networkStartTime uint64 = 0
-		switch network {
-		case "preview": networkStartTime = constants.NetworkStartPreview
-		case "preprod": networkStartTime = constants.NetworkStartPreprod
-		case "mainnet": networkStartTime = constants.NetworkStartMainnet
-		}
-
-		shared := SharedState{
-			Network: network,
-			NetworkStartTime: networkStartTime,
-			SyncProgress: &[]float64{ -1.0 }[0],  // wat
-			CardanoNodeConfigDir: ourpaths.NetworkConfigDir + sep + network,
-			CardanoNodeSocket: ourpaths.WorkDir + sep + network + sep + "node.sock",
-			CardanoNodePort: new(int),
-			CardanoSubmitApiPort: new(int),
-			OgmiosPort: new(int),
-			BlockfrostPlatformPort: new(int),
-			DolosPort: new(int),
-			PostgresPort: new(int),
-			PostgresPassword: new(string),
-			MithrilCachePort: mithrilCachePort,
-		}
-
-		if (runtime.GOOS == "windows") {
-			shared.CardanoNodeSocket = mkNewWindowsPipeName("cardano-node-" + network)
-		}
-
-		cardanoServicesAvailable := true
-		if _, err := os.Stat(ourpaths.CardanoServicesDir); os.IsNotExist(err) {
-			fmt.Printf("%s[%d]: warning: no cardano-services available, will run without them " +
-				"(No such file or directory: %s)\n", OurLogPrefix, os.Getpid(),
-				ourpaths.CardanoServicesDir)
-			cardanoServicesAvailable = false
-		}
-
-		ogmiosSyncProgressCh := make(chan float64)
-		defer close(ogmiosSyncProgressCh)
-
-		usedChildren := []func(SharedState, chan<- StatusAndUrl)ManagedChild{}
-
-		dolosPRS := dolosPreRunState(shared)
-
-		if !runMithril {
-			if dolosPRS.BootstrappingFromMithril {
-				usedChildren = append(usedChildren, childDolos())
+	for keepGoing {
+		func() {
+			if !firstIteration && !omitSleep {
+				time.Sleep(5 * time.Second)
 			}
-			usedChildren = append(usedChildren, childCardanoNode)
-			if !dolosPRS.BootstrappingFromMithril {
-				usedChildren = append(usedChildren, childDolos())
+			firstIteration = false
+			omitSleep = false
+			comm.BlockRestartUI <- false
+
+			if !runMithril {
+				fmt.Printf("%s[%d]: starting session for network %s\n", OurLogPrefix, os.Getpid(), network)
+			} else {
+				fmt.Printf("%s[%d]: resyncing with Mithril for network %s\n", OurLogPrefix, os.Getpid(),
+					network)
 			}
-			usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
-			if !constants.BlockfrostPlatformOnly {
-				usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
-				usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))
-				usedChildren = append(usedChildren, childPostgres)
-				if cardanoServicesAvailable {
-					usedChildren = append(usedChildren, childProviderServer)
-					usedChildren = append(usedChildren, childProjector)
+
+			var networkStartTime uint64 = 0
+			switch network {
+			case "preview":
+				networkStartTime = constants.NetworkStartPreview
+			case "preprod":
+				networkStartTime = constants.NetworkStartPreprod
+			case "mainnet":
+				networkStartTime = constants.NetworkStartMainnet
+			}
+
+			shared := SharedState{
+				Network:                network,
+				NetworkStartTime:       networkStartTime,
+				SyncProgress:           &[]float64{-1.0}[0], // wat
+				CardanoNodeConfigDir:   ourpaths.NetworkConfigDir + sep + network,
+				CardanoNodeSocket:      ourpaths.WorkDir + sep + network + sep + "node.sock",
+				CardanoNodePort:        new(int),
+				CardanoSubmitApiPort:   new(int),
+				OgmiosPort:             new(int),
+				BlockfrostPlatformPort: new(int),
+				DolosPort:              new(int),
+				PostgresPort:           new(int),
+				PostgresPassword:       new(string),
+				MithrilCachePort:       mithrilCachePort,
+			}
+
+			if runtime.GOOS == "windows" {
+				shared.CardanoNodeSocket = mkNewWindowsPipeName("cardano-node-" + network)
+			}
+
+			cardanoServicesAvailable := true
+			if _, err := os.Stat(ourpaths.CardanoServicesDir); os.IsNotExist(err) {
+				fmt.Printf("%s[%d]: warning: no cardano-services available, will run without them "+
+					"(No such file or directory: %s)\n", OurLogPrefix, os.Getpid(),
+					ourpaths.CardanoServicesDir)
+				cardanoServicesAvailable = false
+			}
+
+			ogmiosSyncProgressCh := make(chan float64)
+			defer close(ogmiosSyncProgressCh)
+
+			usedChildren := []func(SharedState, chan<- StatusAndUrl) ManagedChild{}
+
+			dolosPRS := dolosPreRunState(shared)
+
+			if !runMithril {
+				if dolosPRS.BootstrappingFromMithril {
+					usedChildren = append(usedChildren, childDolos())
 				}
+				usedChildren = append(usedChildren, childCardanoNode)
+				if !dolosPRS.BootstrappingFromMithril {
+					usedChildren = append(usedChildren, childDolos())
+				}
+				usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
+				if !constants.BlockfrostPlatformOnly {
+					usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
+					usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))
+					usedChildren = append(usedChildren, childPostgres)
+					if cardanoServicesAvailable {
+						usedChildren = append(usedChildren, childProviderServer)
+						usedChildren = append(usedChildren, childProjector)
+					}
+				}
+			} else {
+				usedChildren = append(usedChildren, childMithril(appConfig))
+				runMithril = false // one-time thing (restart to regular mode – successfully or by force)
 			}
-		} else {
-			usedChildren = append(usedChildren, childMithril(appConfig))
-			runMithril = false  // one-time thing (restart to regular mode – successfully or by force)
-		}
 
-		childrenDefs := []ManagedChild{}
-		for _, mkChild := range usedChildren {
-			statusCh := make(chan StatusAndUrl, 1)
-			initialStatus := StatusAndUrl{
-				Status: "off",
-				Progress: -1,
-				TaskSize: -1,
-				SecondsLeft: -1,
-				Url: "",
-			}
-			statusCh <- initialStatus
-			def := mkChild(shared, statusCh)
-			def.StatusCh = statusCh
-			go func(){
-				fullStatus := t.ServiceStatus {
-					ServiceName: def.ServiceName,
-					Status:      initialStatus.Status,
+			childrenDefs := []ManagedChild{}
+			for _, mkChild := range usedChildren {
+				statusCh := make(chan StatusAndUrl, 1)
+				initialStatus := StatusAndUrl{
+					Status:      "off",
 					Progress:    -1,
-					Url:         initialStatus.Url,
-					Version:     def.Version,
-					Revision:    def.Revision,
+					TaskSize:    -1,
+					SecondsLeft: -1,
+					Url:         "",
 				}
-				for upd := range statusCh {
-					// lessen refreshing, too often causes glitching tray UI on Windows
-					if upd.Status != fullStatus.Status ||
-						upd.Progress != fullStatus.Progress ||
-						upd.TaskSize != fullStatus.TaskSize ||
-						upd.SecondsLeft != fullStatus.SecondsLeft ||
-						(!upd.OmitUrl && upd.Url != fullStatus.Url) {
-						fullStatus.Status = upd.Status
-						fullStatus.Progress = upd.Progress
-						fullStatus.TaskSize = upd.TaskSize
-						fullStatus.SecondsLeft = upd.SecondsLeft
-						if !upd.OmitUrl {
-							fullStatus.Url = upd.Url
+				statusCh <- initialStatus
+				def := mkChild(shared, statusCh)
+				def.StatusCh = statusCh
+				go func() {
+					fullStatus := t.ServiceStatus{
+						ServiceName: def.ServiceName,
+						Status:      initialStatus.Status,
+						Progress:    -1,
+						Url:         initialStatus.Url,
+						Version:     def.Version,
+						Revision:    def.Revision,
+					}
+					for upd := range statusCh {
+						// lessen refreshing, too often causes glitching tray UI on Windows
+						if upd.Status != fullStatus.Status ||
+							upd.Progress != fullStatus.Progress ||
+							upd.TaskSize != fullStatus.TaskSize ||
+							upd.SecondsLeft != fullStatus.SecondsLeft ||
+							(!upd.OmitUrl && upd.Url != fullStatus.Url) {
+							fullStatus.Status = upd.Status
+							fullStatus.Progress = upd.Progress
+							fullStatus.TaskSize = upd.TaskSize
+							fullStatus.SecondsLeft = upd.SecondsLeft
+							if !upd.OmitUrl {
+								fullStatus.Url = upd.Url
+							}
+							comm.ServiceUpdate <- fullStatus
 						}
-						comm.ServiceUpdate <- fullStatus
+					}
+				}()
+				childrenDefs = append(childrenDefs, def)
+			}
+
+			// We want to fake an update to cardano-node’s ServiceStatus as soon as Ogmios returns progress:
+			go func() {
+				var cardanoNodeStatusCh chan<- StatusAndUrl
+				for _, child := range childrenDefs {
+					if child.ServiceName == "cardano-node" {
+						cardanoNodeStatusCh = child.StatusCh
+						break
 					}
 				}
-			}()
-			childrenDefs = append(childrenDefs, def)
-		}
-
-		// We want to fake an update to cardano-node’s ServiceStatus as soon as Ogmios returns progress:
-		go func(){
-			var cardanoNodeStatusCh chan<- StatusAndUrl
-			for _, child := range childrenDefs {
-				if child.ServiceName == "cardano-node" {
-					cardanoNodeStatusCh = child.StatusCh
-					break
-				}
-			}
-			for syncProgress := range ogmiosSyncProgressCh {
-				*shared.SyncProgress = syncProgress
-				textual := "syncing"
-				if syncProgress == 1.0 { textual = "synced" }
-				cardanoNodeStatusCh <- StatusAndUrl {
-					Status: textual,
-					Progress: syncProgress,
-					TaskSize: -1,
-					SecondsLeft: -1,
-					OmitUrl: true,
-				}
-			}
-		}()
-
-		var wgChildren sync.WaitGroup
-
-		defer func(networkMemo string) {
-			if r := recover(); r != nil {
-				fmt.Fprintf(os.Stderr, "%s[%d]: panic: %s\n", OurLogPrefix, os.Getpid(), r)
-			}
-			comm.BlockRestartUI <- true
-			wgChildren.Wait()
-			for _, child := range childrenDefs {
-				// Reset all statuses to "off" (not all children might’ve been started
-				// and they’re "waiting" now)
-				child.StatusCh <- StatusAndUrl{
-					Status: "off",
-					Progress: -1,
-					TaskSize: -1,
-					SecondsLeft: -1,
-					Url: "",
-					OmitUrl: false,
-				}
-				close(child.StatusCh)
-			}
-			fmt.Printf("%s[%d]: session ended for network %s\n", OurLogPrefix, os.Getpid(), networkMemo)
-		}("" + network)
-
-		anyChildExitedCh := make(chan struct{}, len(childrenDefs))
-
-		for childIdx, childUnsafe := range childrenDefs {
-			child := childUnsafe // or else all interations will get the same ref (last child)
-
-			childArgv, err := child.MkArgv()
-			if err != nil {
-				fmt.Printf("%s[%d]: failed to create argv for %s: %v\n", OurLogPrefix, os.Getpid(),
-					child.ServiceName, err)
-				return  // scrap everything and restart
-			}
-
-			wgChildren.Add(1)
-			fmt.Printf("%s[%d]: starting %s...\n", OurLogPrefix, os.Getpid(), child.ServiceName)
-			for _, dependant := range childrenDefs[(childIdx+1):] {
-				dependant.StatusCh <- StatusAndUrl{
-					Status: fmt.Sprintf("waiting for %s", child.ServiceName),
-					Progress: -1,
-					TaskSize: -1,
-					SecondsLeft: -1,
-					Url: "",
-					OmitUrl: true,
-				}
-			}
-			child.StatusCh <- StatusAndUrl {
-				Status: "starting…",
-				Progress: -1,
-				TaskSize: -1,
-				SecondsLeft: -1,
-				Url: "",
-				OmitUrl: true,
-			}
-			outputLines := make(chan string)
-			terminateCh := make(chan struct{}, 1)
-			childDidExit := false
-			childPid := 0
-
-			childFun := childProcess
-			if child.AllocatePTY {
-				if runtime.GOOS == "windows" {
-					childFun = childProcessPTYWindows
-				} else {
-					childFun = childProcessPTY
-				}
-			}
-
-			go childFun(child.ExePath, childArgv, child.MkExtraEnv(),
-				child.LogModifier, outputLines, terminateCh, &childPid,
-				child.TerminateGracefullyByInheritedFd3,
-				child.ForceKillAfter,
-				child.OpenFileLimit)
-			defer func() {
-				if !childDidExit {
-					child.StatusCh <- StatusAndUrl {
-						Status: "terminating…",
-						Progress: -1,
-						TaskSize: -1,
+				for syncProgress := range ogmiosSyncProgressCh {
+					*shared.SyncProgress = syncProgress
+					textual := "syncing"
+					if syncProgress == 1.0 {
+						textual = "synced"
+					}
+					cardanoNodeStatusCh <- StatusAndUrl{
+						Status:      textual,
+						Progress:    syncProgress,
+						TaskSize:    -1,
 						SecondsLeft: -1,
-						Url: "",
-						OmitUrl: true,
+						OmitUrl:     true,
 					}
-					terminateCh <- struct{}{}
 				}
 			}()
-			initializedCh := make(chan struct{}, 1)
 
-			// monitor output:
-			go func() {
-				for line := range outputLines {
-					fmt.Printf("%s[%d]: %s\n", child.ServiceName, childPid, line)
-					child.LogMonitor(line)
+			var wgChildren sync.WaitGroup
+
+			defer func(networkMemo string) {
+				if r := recover(); r != nil {
+					fmt.Fprintf(os.Stderr, "%s[%d]: panic: %s\n", OurLogPrefix, os.Getpid(), r)
 				}
-				childDidExit = true
-				fmt.Printf("%s[%d]: process ended: %s[%d]\n", OurLogPrefix, os.Getpid(),
-					child.ServiceName, childPid)
-				err := child.PostStop()
+				comm.BlockRestartUI <- true
+				wgChildren.Wait()
+				for _, child := range childrenDefs {
+					// Reset all statuses to "off" (not all children might’ve been started
+					// and they’re "waiting" now)
+					child.StatusCh <- StatusAndUrl{
+						Status:      "off",
+						Progress:    -1,
+						TaskSize:    -1,
+						SecondsLeft: -1,
+						Url:         "",
+						OmitUrl:     false,
+					}
+					close(child.StatusCh)
+				}
+				fmt.Printf("%s[%d]: session ended for network %s\n", OurLogPrefix, os.Getpid(), networkMemo)
+			}("" + network)
+
+			anyChildExitedCh := make(chan struct{}, len(childrenDefs))
+
+			for childIdx, childUnsafe := range childrenDefs {
+				child := childUnsafe // or else all interations will get the same ref (last child)
+
+				childArgv, err := child.MkArgv()
 				if err != nil {
-					fmt.Printf("%s[%d]: PostStop of %s[%d] returned an error: %v\n",
-						OurLogPrefix, os.Getpid(), child.ServiceName, childPid, err)
-				} else if child.ServiceName == "mithril-client" {
-					// don’t wait after a successful Mithril resync
-					omitSleep = true
+					fmt.Printf("%s[%d]: failed to create argv for %s: %v\n", OurLogPrefix, os.Getpid(),
+						child.ServiceName, err)
+					return // scrap everything and restart
+				}
+
+				wgChildren.Add(1)
+				fmt.Printf("%s[%d]: starting %s...\n", OurLogPrefix, os.Getpid(), child.ServiceName)
+				for _, dependant := range childrenDefs[(childIdx + 1):] {
+					dependant.StatusCh <- StatusAndUrl{
+						Status:      fmt.Sprintf("waiting for %s", child.ServiceName),
+						Progress:    -1,
+						TaskSize:    -1,
+						SecondsLeft: -1,
+						Url:         "",
+						OmitUrl:     true,
+					}
 				}
 				child.StatusCh <- StatusAndUrl{
-					Status: "off",
-					Progress: -1,
-					TaskSize: -1,
+					Status:      "starting…",
+					Progress:    -1,
+					TaskSize:    -1,
 					SecondsLeft: -1,
-					Url: "",
-					OmitUrl: false,
+					Url:         "",
+					OmitUrl:     true,
 				}
-				wgChildren.Done()
-				anyChildExitedCh <- struct{}{}
-			}()
+				outputLines := make(chan string)
+				terminateCh := make(chan struct{}, 1)
+				childDidExit := false
+				childPid := 0
 
-			// monitor health:
-			go func() {
-				prev := HealthStatus {
-					Initialized: false,
-					DoRestart: false,
-					NextProbeIn: 1 * time.Second,
-					LastErr: nil,
-				}
-				for {
-					next := child.HealthProbe(prev)
-					if next.DoRestart {
-						fmt.Printf("%s[%d]: health probe of %s[%d] requested restart\n",
-							OurLogPrefix, os.Getpid(), child.ServiceName, childPid)
-						terminateCh <- struct{}{}
-						return
+				childFun := childProcess
+				if child.AllocatePTY {
+					if runtime.GOOS == "windows" {
+						childFun = childProcessPTYWindows
+					} else {
+						childFun = childProcessPTY
 					}
-					next.Initialized = prev.Initialized || next.Initialized // remember true
-					if !prev.Initialized && next.Initialized {
-						fmt.Printf("%s[%d]: health probe reported %s[%d] as initialized, will run PostStart\n",
-							OurLogPrefix, os.Getpid(), child.ServiceName, childPid)
-						err := child.PostStart()
-						if err != nil {
-							fmt.Printf("%s[%d]: restarting session, as PostStart of %s[%d] returned an error: %v\n",
-								OurLogPrefix, os.Getpid(), child.ServiceName, childPid, err)
+				}
+
+				go childFun(child.ExePath, childArgv, child.MkExtraEnv(),
+					child.LogModifier, outputLines, terminateCh, &childPid,
+					child.TerminateGracefullyByInheritedFd3,
+					child.ForceKillAfter,
+					child.OpenFileLimit)
+				defer func() {
+					if !childDidExit {
+						child.StatusCh <- StatusAndUrl{
+							Status:      "terminating…",
+							Progress:    -1,
+							TaskSize:    -1,
+							SecondsLeft: -1,
+							Url:         "",
+							OmitUrl:     true,
+						}
+						terminateCh <- struct{}{}
+					}
+				}()
+				initializedCh := make(chan struct{}, 1)
+
+				// monitor output:
+				go func() {
+					for line := range outputLines {
+						fmt.Printf("%s[%d]: %s\n", child.ServiceName, childPid, line)
+						child.LogMonitor(line)
+					}
+					childDidExit = true
+					fmt.Printf("%s[%d]: process ended: %s[%d]\n", OurLogPrefix, os.Getpid(),
+						child.ServiceName, childPid)
+					err := child.PostStop()
+					if err != nil {
+						fmt.Printf("%s[%d]: PostStop of %s[%d] returned an error: %v\n",
+							OurLogPrefix, os.Getpid(), child.ServiceName, childPid, err)
+					} else if child.ServiceName == "mithril-client" {
+						// don’t wait after a successful Mithril resync
+						omitSleep = true
+					}
+					child.StatusCh <- StatusAndUrl{
+						Status:      "off",
+						Progress:    -1,
+						TaskSize:    -1,
+						SecondsLeft: -1,
+						Url:         "",
+						OmitUrl:     false,
+					}
+					wgChildren.Done()
+					anyChildExitedCh <- struct{}{}
+				}()
+
+				// monitor health:
+				go func() {
+					prev := HealthStatus{
+						Initialized: false,
+						DoRestart:   false,
+						NextProbeIn: 1 * time.Second,
+						LastErr:     nil,
+					}
+					for {
+						next := child.HealthProbe(prev)
+						if next.DoRestart {
+							fmt.Printf("%s[%d]: health probe of %s[%d] requested restart\n",
+								OurLogPrefix, os.Getpid(), child.ServiceName, childPid)
 							terminateCh <- struct{}{}
 							return
 						}
-						initializedCh <- struct{}{} // continue launching the next process
+						next.Initialized = prev.Initialized || next.Initialized // remember true
+						if !prev.Initialized && next.Initialized {
+							fmt.Printf("%s[%d]: health probe reported %s[%d] as initialized, will run PostStart\n",
+								OurLogPrefix, os.Getpid(), child.ServiceName, childPid)
+							err := child.PostStart()
+							if err != nil {
+								fmt.Printf("%s[%d]: restarting session, as PostStart of %s[%d] returned an error: %v\n",
+									OurLogPrefix, os.Getpid(), child.ServiceName, childPid, err)
+								terminateCh <- struct{}{}
+								return
+							}
+							initializedCh <- struct{}{} // continue launching the next process
+						}
+						time.Sleep(next.NextProbeIn)
+						if childDidExit {
+							// Let’s not log this, as it's confusing even 60 seconds too late:
+							// fmt.Printf("%s[%d]: stopping health monitor of %s[%d]\n",
+							// 	OurLogPrefix, os.Getpid(), child.ServiceName, childPid)
+							break
+						}
+						prev = next
 					}
-					time.Sleep(next.NextProbeIn)
-					if childDidExit {
-						// Let’s not log this, as it's confusing even 60 seconds too late:
-						// fmt.Printf("%s[%d]: stopping health monitor of %s[%d]\n",
-						// 	OurLogPrefix, os.Getpid(), child.ServiceName, childPid)
-						break
-					}
-					prev = next
-				}
-			}()
+				}()
 
-		OneFinalWait:
-			select {
-			case <-anyChildExitedCh:
-				return // if any exited, fail the whole session, and restart
-			case <-initializedCh:
-				if childIdx + 1 == len(childrenDefs) {
-					fmt.Printf("%s[%d]: initialized all children\n", OurLogPrefix, os.Getpid())
-					// if it was the last child, continue waiting:
-					goto OneFinalWait
-				}
-				// else: continue starting the next child
-				fmt.Printf("%s[%d]: will continue launching the next child\n",
-					OurLogPrefix, os.Getpid())
-			case newNetwork := <-comm.NetworkSwitch:
-				if newNetwork != network {
+			OneFinalWait:
+				select {
+				case <-anyChildExitedCh:
+					return // if any exited, fail the whole session, and restart
+				case <-initializedCh:
+					if childIdx+1 == len(childrenDefs) {
+						fmt.Printf("%s[%d]: initialized all children\n", OurLogPrefix, os.Getpid())
+						// if it was the last child, continue waiting:
+						goto OneFinalWait
+					}
+					// else: continue starting the next child
+					fmt.Printf("%s[%d]: will continue launching the next child\n",
+						OurLogPrefix, os.Getpid())
+				case newNetwork := <-comm.NetworkSwitch:
+					if newNetwork != network {
+						omitSleep = true
+						network = newNetwork
+					}
+					return
+				case <-comm.TriggerMithril:
+					runMithril = true
 					omitSleep = true
-					network = newNetwork
+					return
+				case <-comm.InitiateShutdownCh:
+					fmt.Printf("%s[%d]: initiating a graceful shutdown...\n", OurLogPrefix, os.Getpid())
+					keepGoing = false
+					return
 				}
-				return
-			case <-comm.TriggerMithril:
-				runMithril = true
-				omitSleep = true
-				return
-			case <-comm.InitiateShutdownCh:
-				fmt.Printf("%s[%d]: initiating a graceful shutdown...\n", OurLogPrefix, os.Getpid())
-				keepGoing = false
-				return
 			}
-		}
-	}()}
+		}()
+	}
 }
 
 func childProcess(
@@ -508,7 +515,7 @@ func childProcess(
 		terminationPipeReader.Close() // close child’s end in our process
 	}
 
-	if (pid != nil) {
+	if pid != nil {
 		*pid = cmd.Process.Pid
 	}
 	waitDone := make(chan struct{})
@@ -600,8 +607,8 @@ func childProcessPTY(
 	ws := pty.Winsize{
 		Rows: 25,
 		Cols: 80,
-		X: 25 * 20,
-		Y: 80 * 30,
+		X:    25 * 20,
+		Y:    80 * 30,
 	}
 
 	ptyFile, err := pty.StartWithSize(cmd, &ws)
@@ -614,26 +621,28 @@ func childProcessPTY(
 
 	waitDone := make(chan struct{})
 
-	if (pid != nil) {
+	if pid != nil {
 		*pid = cmd.Process.Pid
 	}
 
 	go func() {
-		defer func(){
+		defer func() {
 			waitDone <- struct{}{}
 		}()
 		buf := make([]byte, 1024)
 		for {
 			num, err := ptyFile.Read(buf)
-			if err != nil {	return }
+			if err != nil {
+				return
+			}
 
 			lines := string(buf[:num])
 			lines = stripansi.Strip(lines)
-			lines = strings.ReplaceAll(lines, string(rune(0x07)), "")  // remove bells
+			lines = strings.ReplaceAll(lines, string(rune(0x07)), "") // remove bells
 
 			// XXX: it’s possible that 2+ TTY updates will be clumped together in a single ‘read’, so:
 			for _, line := range strings.FieldsFunc(lines, func(c rune) bool {
-				return (c == '\n' || c == '\r' || c == rune(0x08))  // 0x08 for Windows
+				return (c == '\n' || c == '\r' || c == rune(0x08)) // 0x08 for Windows
 			}) {
 				if len(line) > 0 {
 					line = logModifier(line)

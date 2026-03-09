@@ -58,7 +58,9 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "currentNetwork": { "$ref": "#/components/schemas/NetworkMagic" },
+                    "currentNetwork": {
+                      "$ref": "#/components/schemas/NetworkMagic"
+                    },
                     "availableNetworks": {
                       "type": "array",
                       "items": { "$ref": "#/components/schemas/NetworkMagic" }
@@ -133,14 +135,21 @@
                         "type": "object",
                         "properties": {
                           "jsonrpc": { "type": "string", "example": "2.0" },
-                          "method": { "type": "string", "example": "NetworkChange" },
+                          "method": {
+                            "type": "string",
+                            "example": "NetworkChange"
+                          },
                           "params": {
                             "type": "object",
                             "properties": {
-                              "currentNetwork": { "$ref": "#/components/schemas/NetworkMagic" },
+                              "currentNetwork": {
+                                "$ref": "#/components/schemas/NetworkMagic"
+                              },
                               "availableNetworks": {
                                 "type": "array",
-                                "items": { "$ref": "#/components/schemas/NetworkMagic" }
+                                "items": {
+                                  "$ref": "#/components/schemas/NetworkMagic"
+                                }
                               }
                             }
                           }
@@ -159,7 +168,9 @@
                                 "format": "date-time",
                                 "example": "2023-07-27T09:12:34.022511785Z"
                               },
-                              "serviceName": { "$ref": "#/components/schemas/ServiceName" },
+                              "serviceName": {
+                                "$ref": "#/components/schemas/ServiceName"
+                              },
                               "pid": { "type": "integer", "example": 10462 },
                               "stderr": { "type": "boolean", "example": false },
                               "line": {
@@ -174,8 +185,13 @@
                         "type": "object",
                         "properties": {
                           "jsonrpc": { "type": "string", "example": "2.0" },
-                          "method": { "type": "string", "example": "ServiceStatus" },
-                          "params": { "$ref": "#/components/schemas/ServiceStatus" }
+                          "method": {
+                            "type": "string",
+                            "example": "ServiceStatus"
+                          },
+                          "params": {
+                            "$ref": "#/components/schemas/ServiceStatus"
+                          }
                         }
                       }
                     ]
@@ -196,7 +212,12 @@
       },
       "ServiceName": {
         "type": "string",
-        "enum": ["cardano-node", "ogmios", "provider-server", "blockfrost-platform-desktop"]
+        "enum": [
+          "cardano-node",
+          "ogmios",
+          "provider-server",
+          "blockfrost-platform-desktop"
+        ]
       },
       "ServiceStatus": {
         "type": "object",

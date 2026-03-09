@@ -1,5 +1,4 @@
 {
-
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
 
@@ -81,7 +80,10 @@
             }
             else {}
           );
-        devShells = import ./nix/devshells.nix {inherit inputs; buildSystem = system;};
+        devShells = import ./nix/devshells.nix {
+          inherit inputs;
+          buildSystem = system;
+        };
 
         treefmt = {
           projectRootFile = "flake.nix";

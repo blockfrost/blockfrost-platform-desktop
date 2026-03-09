@@ -5,10 +5,10 @@
 # XXX: no -o pipefail in dash (on debians)
 set -eu
 
-skip_bytes=$(( 1010101010 - 1000000000 ))
+skip_bytes=$((1010101010 - 1000000000))
 
 target="$HOME"/.local/opt/@UGLY_NAME@
-if [ -e "$target" ] ; then
+if [ -e "$target" ]; then
   echo "Found previous version of "@UGLY_NAME@", removing it..."
   chmod -R +w "$target"
   rm -rf "$target"
@@ -16,7 +16,7 @@ fi
 mkdir -p "$target"
 
 progress_cmd="cat"
-if type pv >/dev/null ; then
+if type pv >/dev/null; then
   total_size=$(stat -c "%s" "$0")
   progress_cmd="pv -s "$((total_size - skip_bytes))
 else
@@ -24,7 +24,7 @@ else
 fi
 
 echo "Unpacking..."
-tail -c+$((skip_bytes+1)) "$0" | $progress_cmd | tar -C "$target" -xJ
+tail -c+$((skip_bytes + 1)) "$0" | $progress_cmd | tar -C "$target" -xJ
 
 echo "Setting up a .desktop entry..."
 mkdir -p "$HOME"/.local/share/applications
