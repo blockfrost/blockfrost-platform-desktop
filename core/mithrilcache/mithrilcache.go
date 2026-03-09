@@ -11,6 +11,7 @@ import (
 	"strings"
 	"path/filepath"
 
+	"blockfrost.io/blockfrost-platform-desktop/constants"
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
 	"blockfrost.io/blockfrost-platform-desktop/appconfig"
 )
@@ -20,9 +21,9 @@ const (
 )
 
 var upstream = map[string]string{
-	"preview": "https://aggregator.pre-release-preview.api.mithril.network/aggregator",
-	"preprod": "https://aggregator.release-preprod.api.mithril.network/aggregator",
-	"mainnet": "https://aggregator.release-mainnet.api.mithril.network/aggregator",
+	"preview": constants.MithrilAggregatorPreview,
+	"preprod": constants.MithrilAggregatorPreprod,
+	"mainnet": constants.MithrilAggregatorMainnet,
 }
 
 var localSnapshotHttpName = "local-snapshot.tar.zst"

@@ -25,7 +25,9 @@ in rec {
     patches = (old.patches or []) ++ [ ./nodejs--no-verify-snapshot-checksum.patch ];
   });
 
-  webkit2gtk = pkgs.webkitgtk_4_1.overrideAttrs (old: {
+  webkit2gtk = let
+    oldPkgs = import inputs.nixpkgs-webkitgtk { system = targetSystem; };
+  in oldPkgs.webkitgtk_4_1.overrideAttrs (old: {
     patches = (old.patches or []) ++ [ ./webkitgtk--specify-paths-via-env.patch ];
   });
 
@@ -230,6 +232,7 @@ in rec {
               "cardano-submit-api" = lib.getExe cardano-submit-api;
             })} $out/libexec/cardano-node
     ln -s ${blockfrost-platform                                              } $out/libexec/blockfrost-platform
+    ln -s ${mkBundle { "dolos"          = lib.getExe common.dolos;          }} $out/libexec/dolos
     ln -s ${mkBundle { "mithril-client" = lib.getExe mithril-client;        }} $out/libexec/mithril-client
     ln -s ${mkBundle { "clip"           = lib.getExe pkgs.xclip;            }} $out/libexec/xclip
 
@@ -243,6 +246,7 @@ in rec {
 
     ln -s ${pkgs.xkeyboard_config}/share/X11/xkb $out/share/xkb
     ln -s ${common.cardano-node-configs} $out/share/cardano-node-config
+    ln -s ${common.dolos-configs} $out/share/dolos-config
     ln -s ${common.swagger-ui} $out/share/swagger-ui
     ln -s ${ui.dist} $out/share/ui
   '';

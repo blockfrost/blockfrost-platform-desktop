@@ -101,9 +101,11 @@ func SetupTray(
 	fixme_CardanoSubmitApiStatus := make(chan string)
 	fixme_OgmiosStatus := make(chan string)
 	fixme_BlockfrostPlatformStatus := make(chan string)
+	fixme_DolosStatus := make(chan string)
 	fixme_PostgresStatus := make(chan string)
 	fixme_SetOgmiosDashboard := make(chan string)
-	fixme_SetBlockfrostPlatformUrl := make(chan string)
+	//fixme_SetBlockfrostPlatformUrl := make(chan string)
+	//fixme_SetDolosUrl := make(chan string)
 	fixme_SetCardanoSubmitApiUrl := make(chan string)
 	fixme_ProviderServerStatus := make(chan string)
 	fixme_ProjectorStatus := make(chan string)
@@ -127,7 +129,10 @@ func SetupTray(
 				fixme_SetOgmiosDashboard <- upd.Url
 			case "blockfrost-platform":
 				fixme_BlockfrostPlatformStatus <- formatted
-				fixme_SetBlockfrostPlatformUrl <- upd.Url
+				//fixme_SetBlockfrostPlatformUrl <- upd.Url
+			case "dolos":
+				fixme_DolosStatus <- formatted
+				//fixme_SetDolosUrl <- upd.Url  // if you uncomment, read it! otherways UI will hang
 			case "postgres":
 				fixme_PostgresStatus <- formatted
 			case "provider-server":
@@ -177,6 +182,7 @@ func SetupTray(
 	}()
 	*/
 
+	/*
 	mCopyBlockfrostPlatformUrl := systray.AddMenuItem("Copy Blockfrost platform URL", "")
 	go func() {
 		url := ""
@@ -196,14 +202,16 @@ func SetupTray(
 			}
 		}}
 	}()
+	*/
 
 	systray.AddSeparator()
 
 	// XXX: this weird type because we want order, and there are no tuples:
 	statuses := []map[string](<-chan string) {
-		{ "cardano-node":       fixme_CardanoNodeStatus },
-		// { "ogmios":             fixme_OgmiosStatus },
 		{ "blockfrost-platform":fixme_BlockfrostPlatformStatus },
+		{ "cardano-node":       fixme_CardanoNodeStatus },
+		{ "dolos":              fixme_DolosStatus },
+		// { "ogmios":             fixme_OgmiosStatus },
 		// { "cardano-submit-api": fixme_CardanoSubmitApiStatus },
 		// { "postgres":           fixme_PostgresStatus },
 		// { "provider-server":    fixme_ProviderServerStatus },
@@ -335,9 +343,9 @@ func SetupTray(
 	go func() {
 		// Calculate these? How?
 		eta := map[string](string) {
-			"preview": "about 5 minutes",
-			"preprod": "about 5 minutes",
-			"mainnet": "about 2 hours",
+			"preview": "about 3-4 hours",
+			"preprod": "about 3-4 hours",
+			"mainnet": "about 18-22 hours",
 		}
 		_ = eta
 		for range mResyncMithril.ClickedCh {

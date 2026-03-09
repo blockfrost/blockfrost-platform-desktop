@@ -16,7 +16,34 @@
     }
   ],
   "paths": {
-    "/v1/info": {
+    "/api/v0": {
+      "get": {
+        "operationId": "b05bfb62-9d83-4a8c-8431-42a737ed4d1e",
+        "summary": "Proxy to the Blockfrost platform",
+        "description": "Everything under `/api/v0/*` will be proxied to the underlying Blockfrost platform. The request format is compatible with the public Blockfrost API.\n\nFor example, try `GET /api/v0/txs/46876a2250ec0e523eccc30b0fc6d6fa55c61dd200b83140acaab291edeb0b11`.",
+        "tags": ["default"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "healthy": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/_mgmt/info": {
       "get": {
         "operationId": "381bbe97-e5d8-4f25-8249-a168e2f15f53",
         "summary": "Information about capabilities",
@@ -48,7 +75,7 @@
         }
       }
     },
-    "/v1/switch-network/{networkMagic}": {
+    "/_mgmt/switch-network/{networkMagic}": {
       "put": {
         "operationId": "6baa086b-9fc7-4ec6-b8ca-f9b2c025f523",
         "summary": "Switch network",
@@ -78,11 +105,11 @@
         }
       }
     },
-    "/v1/websocket": {
+    "/_mgmt/websocket": {
       "head": {
         "operationId": "32f90caf-abdd-4a7a-b9a5-795616c44a0a",
         "summary": "Notifications about service and network changes over a WebSocket",
-        "description": "Similar to `/v1/info`, but in real time. Also has logs.\n\nThis endpoint is modeled as a `HEAD` here, but in reality it’s a WebSocket with a few [JSON RPC 2.0](https://www.jsonrpc.org/specification) notifications (see responses below). There are no requests.\n\nTry the [Web UI](/ui/) to see WebSocket events as they happen.",
+        "description": "Similar to `/_mgmt/info`, but in real time. Also has logs.\n\nThis endpoint is modeled as a `HEAD` here, but in reality it’s a WebSocket with a few [JSON RPC 2.0](https://www.jsonrpc.org/specification) notifications (see responses below). There are no requests.\n\nTry the [Web UI](/ui/) to see WebSocket events as they happen.",
         "tags": ["default"],
         "parameters": [
           {

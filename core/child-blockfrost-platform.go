@@ -14,15 +14,17 @@ import (
 func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, chan<- StatusAndUrl) ManagedChild { return func(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {
 	sep := string(filepath.Separator)
 
+	serviceName := "blockfrost-platform"
 	reSyncProgress := regexp.MustCompile(`"sync_progress"\s*:\s*(\d*\.\d+)`)
 
 	return ManagedChild{
-		ServiceName: "blockfrost-platform",
+		ServiceName: serviceName,
 		ExePath: ourpaths.LibexecDir + sep + "blockfrost-platform" + sep + "blockfrost-platform" + ourpaths.ExeSuffix,
 		Version: constants.BlockfrostPlatformVersion,
 		Revision: constants.BlockfrostPlatformRevision,
 		MkArgv: func() ([]string, error) {
 			*shared.BlockfrostPlatformPort = getFreeTCPPort()
+
 			return []string{
 				"--solitary",
 				"--server-address", "127.0.0.1",
@@ -30,6 +32,8 @@ func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, ch
 				"--log-level", "info",
 				"--node-socket-path", shared.CardanoNodeSocket,
 				"--mode", "compact",
+				"--data-node", fmt.Sprintf("http://127.0.0.1:%d", *shared.DolosPort),
+				"--data-node-timeout-sec", "30",
 			}, nil
 		},
 		MkExtraEnv: func() []string { return []string{} },

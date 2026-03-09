@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"sync/atomic"
 
 	t "blockfrost.io/blockfrost-platform-desktop/types"
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
@@ -35,6 +36,7 @@ type ManagedChild struct {
 	LogMonitor  func(string)
 	LogModifier func(string) string // e.g. to drop redundant timestamps
 	TerminateGracefullyByInheritedFd3 bool // <https://github.com/input-output-hk/cardano-node/issues/726>
+	OpenFileLimit int // if > 0, wrap child in a shell that sets RLIMIT_NOFILE to this value
 	ForceKillAfter time.Duration // graceful exit timeout, after which we SIGKILL the child
 	PostStop    func() error
 }
@@ -57,12 +59,15 @@ type HealthStatus struct {
 
 type SharedState struct {
 	Network string
+	NetworkStartTime uint64 // UNIX timestamp [s]
 	SyncProgress *float64  // XXX: we take that from Ogmios, we should probably calculate ourselves?
 	CardanoNodeConfigDir string
 	CardanoNodeSocket string
+	CardanoNodePort *int
 	CardanoSubmitApiPort *int
 	OgmiosPort *int
 	BlockfrostPlatformPort *int
+	DolosPort *int
 	PostgresPort *int
 	PostgresPassword *string
 	MithrilCachePort int
@@ -78,13 +83,6 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 	firstIteration := true
 	omitSleep := false
 	keepGoing := true
-
-	windowsPipeCounter := -1
-	mkNewWindowsPipeName := func() string {
-		windowsPipeCounter += 1
-		return fmt.Sprintf("\\\\.\\pipe\\cardano-node-%s.%d.%d",
-			network, os.Getpid(), windowsPipeCounter)
-	}
 
 	// XXX: we nest a function here, so that we can defer cleanups, and return early on errors etc.
 	for keepGoing { func() {
@@ -102,21 +100,31 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 				network)
 		}
 
+		var networkStartTime uint64 = 0
+		switch network {
+		case "preview": networkStartTime = constants.NetworkStartPreview
+		case "preprod": networkStartTime = constants.NetworkStartPreprod
+		case "mainnet": networkStartTime = constants.NetworkStartMainnet
+		}
+
 		shared := SharedState{
 			Network: network,
+			NetworkStartTime: networkStartTime,
 			SyncProgress: &[]float64{ -1.0 }[0],  // wat
 			CardanoNodeConfigDir: ourpaths.NetworkConfigDir + sep + network,
 			CardanoNodeSocket: ourpaths.WorkDir + sep + network + sep + "node.sock",
+			CardanoNodePort: new(int),
 			CardanoSubmitApiPort: new(int),
 			OgmiosPort: new(int),
 			BlockfrostPlatformPort: new(int),
+			DolosPort: new(int),
 			PostgresPort: new(int),
 			PostgresPassword: new(string),
 			MithrilCachePort: mithrilCachePort,
 		}
 
 		if (runtime.GOOS == "windows") {
-			shared.CardanoNodeSocket = mkNewWindowsPipeName()
+			shared.CardanoNodeSocket = mkNewWindowsPipeName("cardano-node-" + network)
 		}
 
 		cardanoServicesAvailable := true
@@ -132,8 +140,16 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 
 		usedChildren := []func(SharedState, chan<- StatusAndUrl)ManagedChild{}
 
+		dolosPRS := dolosPreRunState(shared)
+
 		if !runMithril {
+			if dolosPRS.BootstrappingFromMithril {
+				usedChildren = append(usedChildren, childDolos())
+			}
 			usedChildren = append(usedChildren, childCardanoNode)
+			if !dolosPRS.BootstrappingFromMithril {
+				usedChildren = append(usedChildren, childDolos())
+			}
 			usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
 			if !constants.BlockfrostPlatformOnly {
 				usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
@@ -288,7 +304,8 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 			go childFun(child.ExePath, childArgv, child.MkExtraEnv(),
 				child.LogModifier, outputLines, terminateCh, &childPid,
 				child.TerminateGracefullyByInheritedFd3,
-				child.ForceKillAfter)
+				child.ForceKillAfter,
+				child.OpenFileLimit)
 			defer func() {
 				if !childDidExit {
 					child.StatusCh <- StatusAndUrl {
@@ -411,6 +428,7 @@ func childProcess(
 	outputLines chan<- string, terminate <-chan struct{}, pid *int,
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
+	openFileLimit int,
 ) {
 	defer close(outputLines)
 
@@ -431,6 +449,7 @@ func childProcess(
 	cmd := exec.Command(path, argv...)
 
 	setManagedChildSysProcAttr(cmd)
+	setOpenFileLimit(cmd, openFileLimit)
 
 	if len(extraEnv) > 0 {
 		cmd.Env = append(os.Environ(), extraEnv...)
@@ -560,6 +579,7 @@ func childProcessPTY(
 	outputLines chan<- string, terminate <-chan struct{}, pid *int,
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
+	openFileLimit int,
 ) {
 	defer close(outputLines)
 
@@ -571,6 +591,7 @@ func childProcessPTY(
 	cmd := exec.Command(path, argv...)
 
 	setManagedChildSysProcAttr(cmd)
+	setOpenFileLimit(cmd, openFileLimit)
 
 	if len(extraEnv) > 0 {
 		cmd.Env = append(os.Environ(), extraEnv...)
@@ -625,4 +646,12 @@ func childProcessPTY(
 	}()
 
 	__internal__terminateGracefully(terminate, waitDone, gracefulExitTimeout, nil, cmd.Path, cmd.Process, nil)
+}
+
+var __internal__windowsPipeCounter uint64 = 0
+
+func mkNewWindowsPipeName(prefix string) string {
+	next := atomic.AddUint64(&__internal__windowsPipeCounter, 1)
+	return fmt.Sprintf("\\\\.\\pipe\\%s.%d.%d",
+		prefix, os.Getpid(), next)
 }

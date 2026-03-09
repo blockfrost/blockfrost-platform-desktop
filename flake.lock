@@ -3,16 +3,16 @@
     "blockfrost-platform": {
       "flake": false,
       "locked": {
-        "lastModified": 1744196292,
-        "narHash": "sha256-YQi4CccKQs1STp2uJxAibnWOhnR6EaVgU3SmXxgi2hI=",
+        "lastModified": 1773045494,
+        "narHash": "sha256-Z1Za+iKklfLA7s9MaCL8EnIFPJ4pF3Q+GIF7EPl3/Yk=",
         "owner": "blockfrost",
         "repo": "blockfrost-platform",
-        "rev": "4cc0ad65ff1ef80b2490d9f040f1617668cb81fb",
+        "rev": "615eccf4a8ef1913e890c641f633538af5b3ced7",
         "type": "github"
       },
       "original": {
         "owner": "blockfrost",
-        "ref": "pull/296/head",
+        "ref": "pull/471/head",
         "repo": "blockfrost-platform",
         "type": "github"
       }
@@ -69,6 +69,21 @@
       }
     },
     "crane": {
+      "locked": {
+        "lastModified": 1753316655,
+        "narHash": "sha256-tzWa2kmTEN69OEMhxFy+J2oWSvZP5QhEgXp3TROOzl0=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "f35a3372d070c9e9ccb63ba7ce347f0634ddf3d2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "type": "github"
+      }
+    },
+    "crane_2": {
       "locked": {
         "lastModified": 1745454774,
         "narHash": "sha256-oLvmxOnsEKGtwczxp/CwhrfmQUG2ym24OMWowcoRhH8=",
@@ -139,7 +154,7 @@
     },
     "mithril": {
       "inputs": {
-        "crane": "crane",
+        "crane": "crane_2",
         "flake-parts": "flake-parts",
         "nixpkgs": "nixpkgs",
         "treefmt-nix": "treefmt-nix"
@@ -223,7 +238,8 @@
         "type": "github"
       }
     },
-    "nixpkgs_2": {
+    "nixpkgs-webkitgtk": {
+      "flake": false,
       "locked": {
         "lastModified": 1724967238,
         "narHash": "sha256-fydaoGWHKzpDbhWMuKixf+slmiYFqSLOnmVYfFntQxs=",
@@ -235,6 +251,22 @@
       "original": {
         "owner": "nixos",
         "ref": "nixpkgs-24.05-darwin",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1751211869,
+        "narHash": "sha256-1Cu92i1KSPbhPCKxoiVG5qnoRiKTgR5CcGSRyLpOd7Y=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "b43c397f6c213918d6cfe6e3550abfe79b5d1c51",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-25.05",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -264,12 +296,14 @@
         "cardano-js-sdk": "cardano-js-sdk",
         "cardano-node": "cardano-node",
         "cardano-playground": "cardano-playground",
+        "crane": "crane",
         "devshell": "devshell",
         "flake-compat": "flake-compat",
         "mithril": "mithril",
         "nix-bundle-exe": "nix-bundle-exe",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-nsis": "nixpkgs-nsis",
+        "nixpkgs-webkitgtk": "nixpkgs-webkitgtk",
         "ogmios": "ogmios"
       }
     },

@@ -3,6 +3,8 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 	"strconv"
@@ -105,6 +107,26 @@ func handler(
 
 	if r.Method == http.MethodOptions {
 		// fine
+	} else if r.URL.Path == "/api/v0" && r.Method == http.MethodGet {
+		http.Redirect(w, r, "/api/v0/", http.StatusSeeOther)
+	} else if strings.HasPrefix(r.URL.Path, "/api/v0/") {
+		targetUrl := "http://127.0.0.1:-1"
+		for _, svc := range info.Services {
+			if svc.ServiceName == "blockfrost-platform" {
+				targetUrl = svc.Url
+				break
+			}
+		}
+		target, err := url.Parse(targetUrl)
+		if err != nil {
+			http.Error(w, "Bad gateway", http.StatusBadGateway)
+			return
+		}
+		proxy := httputil.NewSingleHostReverseProxy(target)
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api/v0")
+		r.URL.RawPath = strings.TrimPrefix(r.URL.RawPath, "/api/v0") // if set
+		proxy.ServeHTTP(w, r)
+		return
 	} else if r.URL.Path == "/" && r.Method == http.MethodGet {
 		http.Redirect(w, r, "/swagger-ui/", http.StatusSeeOther)
 	} else if tryStatic("swagger-ui") {
@@ -115,13 +137,13 @@ func handler(
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(resp)
 
-	} else if r.URL.Path == "/v1/info" && r.Method == http.MethodGet {
+	} else if r.URL.Path == "/_mgmt/info" && r.Method == http.MethodGet {
 		bytes, err := json.Marshal(*info)
 		if err != nil { panic(err) }
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(bytes)
-	} else if strings.HasPrefix(r.URL.Path, "/v1/switch-network/") && r.Method == http.MethodPut {
-		magicInt, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/v1/switch-network/"))
+	} else if strings.HasPrefix(r.URL.Path, "/_mgmt/switch-network/") && r.Method == http.MethodPut {
+		magicInt, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/_mgmt/switch-network/"))
 		magic := t.NetworkMagic(magicInt)
 		_, exists := availableNetworks[magic]
 		if err == nil && exists {
@@ -130,7 +152,7 @@ func handler(
 		} else {
 			http.Error(w, "Not found", http.StatusNotFound)
 		}
-	} else if r.URL.Path == "/v1/websocket" && r.Method == http.MethodGet {
+	} else if r.URL.Path == "/_mgmt/websocket" && r.Method == http.MethodGet {
 		handleWebsocket(hub, availableNetworks)(w, r)
 	} else {
 		http.Error(w, "Not found", http.StatusNotFound)
