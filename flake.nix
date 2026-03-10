@@ -92,11 +92,12 @@
             clang-format.enable = true;
             gofumpt.enable = true; # Go
             shfmt.enable = true; # Shell
-            prettier.enable = true; # Shell
+            prettier.enable = true;
             yamlfmt.enable = true;
             yamllint.enable = true;
             xmllint.enable = true;
           };
+          settings.formatter.clang-format.includes = ["*.m"];
           settings.global.excludes = [
           ];
         };
