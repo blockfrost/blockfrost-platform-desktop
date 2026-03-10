@@ -187,13 +187,15 @@ in rec {
       '';
   };
 
-  blockfrost-platform-desktop-exe = pkgs.buildGoModule rec {
+  goBuildInputs = with pkgs.darwin.apple_sdk_11_0.frameworks; [Cocoa WebKit UniformTypeIdentifiers];
+
+  blockfrost-platform-desktop-exe = pkgs.buildGoModule {
     name = common.codeName;
     src = common.coreSrc;
     vendorHash = common.blockfrost-platform-desktop-exe-vendorHash;
-    buildInputs = with pkgs.darwin.apple_sdk_11_0.frameworks; [Cocoa WebKit UniformTypeIdentifiers];
+    buildInputs = goBuildInputs;
     overrideModAttrs = oldAttrs: {
-      buildInputs = (oldAttrs.buildInputs or []) ++ buildInputs;
+      buildInputs = (oldAttrs.buildInputs or []) ++ goBuildInputs;
     };
     preBuild = ''
       ln -sf ${common.go-constants}/constants ./

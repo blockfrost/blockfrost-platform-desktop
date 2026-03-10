@@ -1,5 +1,13 @@
 {inputs, ...}: {
-  perSystem = {pkgs, ...}: {
+  perSystem = {
+    pkgs,
+    system,
+    lib,
+    ...
+  }: let
+    internal = inputs.self.internal.${system};
+    inherit (internal) common;
+  in {
     checks = {
       nix-statix =
         pkgs.runCommandNoCC "nix-statix" {
@@ -50,6 +58,31 @@
           done
           exit $ec
         '';
+
+      go-staticcheck = pkgs.buildGoModule {
+        name = "go-staticcheck";
+        src = common.coreSrc;
+        vendorHash = common.blockfrost-platform-desktop-exe-vendorHash;
+        nativeBuildInputs = [pkgs.go-tools] ++ lib.optionals pkgs.stdenv.isLinux [pkgs.pkg-config];
+        buildInputs = internal.goBuildInputs;
+        overrideModAttrs = oldAttrs: {
+          buildInputs = (oldAttrs.buildInputs or []) ++ internal.goBuildInputs;
+        };
+        preBuild = ''
+          ln -sf ${common.go-constants}/constants ./
+          ln -sf ${internal.go-assets}/assets ./
+          # go:embed forbids symlinks, so:
+          cp -R ${internal.ui.dist} ./web-ui
+        '';
+        buildPhase = ''
+          runHook preBuild
+          export HOME=$TMPDIR
+          staticcheck ./...
+          runHook postBuild
+        '';
+        installPhase = "touch $out";
+        doCheck = false;
+      };
     };
   };
 }

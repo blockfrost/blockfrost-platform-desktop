@@ -43,6 +43,10 @@ in {
     {package = inputs.self.formatter.${pkgs.system};}
     {package = pkgs.go;}
     {package = pkgs.gopls;}
+    {
+      name = "staticcheck";
+      package = pkgs.go-tools;
+    }
   ];
 
   language.c.compiler = pkgs.stdenv.cc;
