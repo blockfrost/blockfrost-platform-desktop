@@ -94,6 +94,8 @@
             gofumpt.enable = true; # Go
             shfmt.enable = true; # Shell
             prettier.enable = true; # Shell
+            yamlfmt.enable = true;
+            yamllint.enable = true;
           };
           settings.global.excludes = [
           ];
