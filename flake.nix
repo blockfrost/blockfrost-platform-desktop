@@ -60,7 +60,8 @@
       imports = [
         inputs.devshell.flakeModule
         inputs.treefmt-nix.flakeModule
-        ./nix/internal/nix-checks.nix
+        ./nix/checks.nix
+        ./nix/devshells.nix
       ];
 
       systems = ["x86_64-linux" "x86_64-darwin" "aarch64-darwin"];
@@ -75,15 +76,12 @@
           }
           // (
             if system == "x86_64-linux"
-            then let
-              win = inputs.self.internal.x86_64-windows;
-            in {
-              default-x86_64-windows = win.package;
-              installer-x86_64-windows = win.installer;
+            then {
+              default-x86_64-windows = inputs.self.internal.x86_64-windows.package;
+              installer-x86_64-windows = inputs.self.internal.x86_64-windows.installer;
             }
             else {}
           );
-        devshells.default = import ./nix/devshells.nix {inherit inputs;};
 
         treefmt = {
           projectRootFile = "flake.nix";
@@ -119,6 +117,7 @@
             devShell = lib.genAttrs config.systems (
               targetSystem: inputs.self.devShells.${targetSystem}.default
             );
+            inherit (inputs.self) checks;
           };
         in
           allJobs
