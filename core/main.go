@@ -279,6 +279,7 @@ func main() {
 						TitleBar:                wails3_application.MacTitleBarHiddenInset,
 					},
 					BackgroundColour: wails3_application.NewRGB(0xff, 0xff, 0xff),
+					CSS:              "html, body { overscroll-behavior: none; }",
 					// Beware, on Linux the root is "wails://localhost/", on Windows it’s "http://wails.localhost/".
 					URL: nextUrl,
 				})
