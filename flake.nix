@@ -42,10 +42,6 @@
     nix-bundle-exe.url = "github:3noch/nix-bundle-exe";
     nix-bundle-exe.flake = false;
 
-    # FIXME: ‘nsis’ can’t cross-compile with the regular Nixpkgs (above)
-    nixpkgs-nsis.url = "github:input-output-hk/nixpkgs/be445a9074f139d63e704fa82610d25456562c3d";
-    nixpkgs-nsis.flake = false; # too old
-
     devshell.url = "github:numtide/devshell";
     devshell.inputs.nixpkgs.follows = "nixpkgs";
   };
