@@ -5,10 +5,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"blockfrost.io/blockfrost-platform-desktop/constants"
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
+
+	"github.com/acarl005/stripansi"
 )
 
 func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, chan<- StatusAndUrl) ManagedChild {
@@ -17,6 +20,19 @@ func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, ch
 
 		serviceName := "blockfrost-platform"
 		reSyncProgress := regexp.MustCompile(`"sync_progress"\s*:\s*(\d*\.\d+)`)
+
+		removeTimestamp := func(line string, when time.Time) string {
+			needle := when.Format("2006-01-02T15:04:05.")
+			index := strings.Index(line, needle)
+			if index != -1 {
+				end := index + len(needle) + 7
+				if end > len(line) {
+					end = len(line)
+				}
+				return line[:index] + line[end:]
+			}
+			return line
+		}
 
 		return ManagedChild{
 			ServiceName: serviceName,
@@ -71,8 +87,14 @@ func childBlockfrostPlatform(syncProgressCh chan<- float64) func(SharedState, ch
 					LastErr:     err,
 				}
 			},
-			LogMonitor:                        func(line string) {},
-			LogModifier:                       func(line string) string { return line },
+			LogMonitor: func(line string) {},
+			LogModifier: func(line string) string {
+				line = stripansi.Strip(line)
+				now := time.Now().UTC()
+				line = removeTimestamp(line, now)
+				line = removeTimestamp(line, now.Add(-1*time.Second))
+				return strings.TrimLeft(line, " ")
+			},
 			TerminateGracefullyByInheritedFd3: false,
 			ForceKillAfter:                    5 * time.Second,
 			PostStop:                          func() error { return nil },
