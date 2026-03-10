@@ -96,6 +96,7 @@
             prettier.enable = true; # Shell
             yamlfmt.enable = true;
             yamllint.enable = true;
+            xmllint.enable = true;
           };
           settings.global.excludes = [
           ];
