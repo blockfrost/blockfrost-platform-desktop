@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -142,7 +141,7 @@ func getSnapshotMetadata(network string, digest string, ourPort int, localPath s
 		return nil, fmt.Errorf("mithril-cache upstream error: unexpected status code: %v", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("mithril-cache upstream read error: %v", err)
 	}

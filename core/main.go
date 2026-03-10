@@ -2,10 +2,8 @@ package main
 
 import (
 	"embed"
-	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -375,7 +373,10 @@ func readAvailableNetworks() (map[t.NetworkMagic]string, error) {
 	for _, name := range names {
 		configFile := ourpaths.NetworkConfigDir + sep + name + sep + "config.json"
 
-		configBytes, err := ioutil.ReadFile(configFile)
+		configBytes, err := os.ReadFile(configFile)
+		if err != nil {
+			return nil, err
+		}
 		var config map[string]interface{}
 		err = json.Unmarshal(configBytes, &config)
 		if err != nil {
@@ -387,7 +388,10 @@ func readAvailableNetworks() (map[t.NetworkMagic]string, error) {
 			byronFile = filepath.Join(filepath.Dir(configFile), byronFile)
 		}
 
-		byronBytes, err := ioutil.ReadFile(byronFile)
+		byronBytes, err := os.ReadFile(byronFile)
+		if err != nil {
+			return nil, err
+		}
 		var byron map[string]interface{}
 		err = json.Unmarshal(byronBytes, &byron)
 		if err != nil {
@@ -403,13 +407,13 @@ func readAvailableNetworks() (map[t.NetworkMagic]string, error) {
 }
 
 func readDirAsStrings(dirPath string) ([]string, error) {
-	files, err := ioutil.ReadDir(dirPath)
+	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, err
 	}
 	rv := []string{}
-	for _, file := range files {
-		name := file.Name()
+	for _, entry := range entries {
+		name := entry.Name()
 		if name == "." || name == ".." {
 			continue
 		}

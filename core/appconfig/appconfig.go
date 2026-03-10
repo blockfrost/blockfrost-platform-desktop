@@ -3,7 +3,6 @@ package appconfig
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -50,7 +49,7 @@ func Load() AppConfig {
 		return defaults
 	}
 
-	data, err := ioutil.ReadFile(configFile)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s[%d]: cannot read the config file: %s: %s\n",
 			OurLogPrefix, os.Getpid(), configFile, err)
@@ -77,7 +76,7 @@ func Save(config AppConfig) {
 		return
 	}
 
-	err = ioutil.WriteFile(configFile, data, 0o644)
+	err = os.WriteFile(configFile, data, 0o644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s[%d]: cannot save the config file: %s: %s\n",
 			OurLogPrefix, os.Getpid(), configFile, err)

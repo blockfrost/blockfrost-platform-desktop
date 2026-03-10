@@ -152,7 +152,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild {
 					} else {
 						// But this setup returns immediately:
 						fmt.Printf("%s[%d]: running `dolos bootstrap relay`\n", serviceName, -1)
-						stdout, stderr, err, pid := runCommandWithTimeout(
+						stdout, stderr, pid, err := runCommandWithTimeout(
 							exePath,
 							[]string{"--config", tempConfigPath, "bootstrap", "relay"},
 							[]string{},

@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,13 +59,13 @@ func childPostgres(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChil
 
 				*shared.PostgresPassword = randomString(32)
 
-				pwFileClear, err := ioutil.TempFile("", "pg")
+				pwFileClear, err := os.CreateTemp("", "pg")
 				if err != nil {
 					return nil, err
 				}
 				pwFileClear.Close()
 				defer os.Remove(pwFileClear.Name())
-				err = ioutil.WriteFile(pwFileClear.Name(), []byte(*shared.PostgresPassword), 0o600)
+				err = os.WriteFile(pwFileClear.Name(), []byte(*shared.PostgresPassword), 0o600)
 				if err != nil {
 					return nil, err
 				}
@@ -79,14 +78,13 @@ func childPostgres(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChil
 				}
 
 				fmt.Printf("%s[%d]: running initdb\n", serviceName, -1)
-				stdout, stderr, err, pid := runCommandWithTimeout(
+				stdout, stderr, pid, err := runCommandWithTimeout(
 					libexecDir+sep+"initdb"+ourpaths.ExeSuffix,
 					[]string{"--username", "postgres", "--pwfile", pwFileClear.Name()},
 					extraEnv,
 					60*time.Second,
 					nil,
 				)
-
 				if err != nil {
 					fmt.Printf("%s[%d]: initdb failed: %v (stderr: %v) (stdout: %v)\n",
 						serviceName, pid, err, string(stdout), string(stderr))
@@ -96,12 +94,12 @@ func childPostgres(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChil
 				fmt.Printf("%s[%d]: %s\n", serviceName, pid, strings.ReplaceAll(string(stdout), "\n",
 					fmt.Sprintf("\n%s[%d]: ", serviceName, pid)))
 
-				err = ioutil.WriteFile(pwFile, xorWithKey([]byte(*shared.PostgresPassword), pwKey), 0o600)
+				err = os.WriteFile(pwFile, xorWithKey([]byte(*shared.PostgresPassword), pwKey), 0o600)
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				pwData, err := ioutil.ReadFile(pwFile)
+				pwData, err := os.ReadFile(pwFile)
 				if err != nil {
 					return nil, err
 				}
@@ -110,7 +108,7 @@ func childPostgres(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChil
 
 			fmt.Printf("%s[%d]: TMP-DEBUG: Postgres password is '%s'\n", serviceName, -1, *shared.PostgresPassword)
 
-			err = ioutil.WriteFile(dataDir+sep+"pg_hba.conf", []byte(
+			err = os.WriteFile(dataDir+sep+"pg_hba.conf", []byte(
 				"host  all  all  127.0.0.1/32  scram-sha-256\n"+
 					"host  all  all  ::1/128       scram-sha-256\n",
 			), 0o600)
@@ -118,7 +116,7 @@ func childPostgres(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChil
 				return nil, err
 			}
 
-			err = ioutil.WriteFile(dataDir+sep+"postgresql.conf", []byte(
+			err = os.WriteFile(dataDir+sep+"postgresql.conf", []byte(
 				"listen_addresses = 'localhost'\n"+
 					fmt.Sprintf("port = %d\n", *shared.PostgresPort)+
 					"unix_socket_directories = ''\n"+
@@ -149,7 +147,7 @@ func childPostgres(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChil
 			// It’s self-healing, but still let’s wait a bit to decrease the probability of awkwardness:
 			time.Sleep(1 * time.Second)
 
-			stdout, stderr, err, pid := runCommandWithTimeout(
+			stdout, stderr, pid, err := runCommandWithTimeout(
 				libexecDir+sep+"psql"+ourpaths.ExeSuffix,
 				[]string{
 					"-h", "127.0.0.1",
@@ -162,7 +160,6 @@ func childPostgres(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChil
 				15*time.Second,
 				&stdin,
 			)
-
 			if err != nil {
 				fmt.Printf("%s[%d]: psql failed: %v (stderr: %v) (stdout: %v)\n",
 					serviceName, pid, err, string(stdout), string(stderr))

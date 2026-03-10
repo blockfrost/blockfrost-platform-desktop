@@ -42,23 +42,25 @@ in rec {
     "WebKitWebProcess" = "${webkit2gtk}/libexec/webkit2gtk-4.1/WebKitWebProcess";
   };
 
-  blockfrost-platform-desktop-exe = pkgs.buildGoModule rec {
+  goBuildInputs =
+    [webkit2gtk]
+    ++ (with pkgs; [
+      (libayatana-appindicator-gtk3.override {
+        gtk3 = gtk3-x11;
+        libayatana-indicator = libayatana-indicator.override {gtk3 = gtk3-x11;};
+        libdbusmenu-gtk3 = libdbusmenu-gtk3.override {gtk3 = gtk3-x11;};
+      })
+      gtk3-x11
+    ]);
+
+  blockfrost-platform-desktop-exe = pkgs.buildGoModule {
     name = common.codeName;
     src = common.coreSrc;
     vendorHash = common.blockfrost-platform-desktop-exe-vendorHash;
     nativeBuildInputs = with pkgs; [pkg-config];
-    buildInputs =
-      [webkit2gtk]
-      ++ (with pkgs; [
-        (libayatana-appindicator-gtk3.override {
-          gtk3 = gtk3-x11;
-          libayatana-indicator = libayatana-indicator.override {gtk3 = gtk3-x11;};
-          libdbusmenu-gtk3 = libdbusmenu-gtk3.override {gtk3 = gtk3-x11;};
-        })
-        gtk3-x11
-      ]);
+    buildInputs = goBuildInputs;
     overrideModAttrs = oldAttrs: {
-      buildInputs = (oldAttrs.buildInputs or []) ++ buildInputs;
+      buildInputs = (oldAttrs.buildInputs or []) ++ goBuildInputs;
     };
     preBuild = ''
       ln -sf ${common.go-constants}/constants ./

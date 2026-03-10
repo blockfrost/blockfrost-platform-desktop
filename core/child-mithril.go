@@ -142,14 +142,13 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			Version:     constants.MithrilClientVersion,
 			Revision:    constants.MithrilClientRevision,
 			MkArgv: func() ([]string, error) {
-				stdout, stderr, err, pid := runCommandWithTimeout(
+				stdout, stderr, pid, err := runCommandWithTimeout(
 					exePath,
 					[]string{"cardano-db", "snapshot", "list", "--json"},
 					extraEnv[shared.Network],
 					10*time.Second,
 					nil,
 				)
-
 				if err != nil {
 					fmt.Printf("%s[%d]: fetching snapshots failed: %v (stderr: %v) (stdout: %v)\n",
 						serviceName, pid, err, string(stdout), string(stderr))
@@ -225,7 +224,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				// XXX: we use the early return pattern here, because you can’t have
 				// `if firstPredicate() && (a := mkA(); secondPredicate(a)) in Go for whatever reason
 
-				if strings.Index(line, "1/5 - Checking local disk info") != -1 {
+				if strings.Contains(line, "1/5 - Checking local disk info") {
 					currentStatus = SCheckingDisk
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -234,7 +233,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 					return
 				}
-				if strings.Index(line, "2/5 - Fetching the certificate and verifying the certificate chain") != -1 {
+				if strings.Contains(line, "2/5 - Fetching the certificate and verifying the certificate chain") {
 					currentStatus = SCertificates
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -242,7 +241,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 					return
 				}
-				if strings.Index(line, "3/5 - Downloading and unpacking the cardano db") != -1 {
+				if strings.Contains(line, "3/5 - Downloading and unpacking the cardano db") {
 					currentStatus = SDownloadingUnpacking
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -274,7 +273,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 						return // there would be no way to have `else if` here, hence early return
 					}
 				}
-				if strings.Index(line, "4/5 - Computing the cardano db message") != -1 {
+				if strings.Contains(line, "4/5 - Computing the cardano db message") {
 					currentStatus = SDigest
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -282,7 +281,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 					return
 				}
-				if strings.Index(line, "5/5 - Verifying the cardano db signature") != -1 {
+				if strings.Contains(line, "5/5 - Verifying the cardano db signature") {
 					currentStatus = SVerifyingSignature
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -299,7 +298,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					successMarker = "If you are using Cardano Docker image, " +
 						"you can restore a Cardano Node with"
 				}
-				if strings.Index(line, successMarker) != -1 {
+				if strings.Contains(line, successMarker) {
 					currentStatus = SGoodSignature
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -399,7 +398,7 @@ func runCommandWithTimeout(
 	extraEnv []string,
 	timeout time.Duration,
 	stdin *string, // use nil to not set
-) ([]byte, []byte, error, int) {
+) ([]byte, []byte, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -436,5 +435,5 @@ func runCommandWithTimeout(
 		pid = cmd.Process.Pid
 	}
 
-	return stdoutBuf.Bytes(), stderrBuf.Bytes(), rerr, pid
+	return stdoutBuf.Bytes(), stderrBuf.Bytes(), pid, rerr
 }
