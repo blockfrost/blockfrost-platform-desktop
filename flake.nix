@@ -57,6 +57,7 @@
   in
     inputs.flake-parts.lib.mkFlake {inherit inputs;} ({config, ...}: {
       imports = [
+        inputs.devshell.flakeModule
         inputs.treefmt-nix.flakeModule
         ./nix/internal/nix-checks.nix
       ];
@@ -81,10 +82,7 @@
             }
             else {}
           );
-        devShells = import ./nix/devshells.nix {
-          inherit inputs;
-          buildSystem = system;
-        };
+        devshells.default = import ./nix/devshells.nix {inherit inputs;};
 
         treefmt = {
           projectRootFile = "flake.nix";
