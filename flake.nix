@@ -1,35 +1,36 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
-
     flake-parts.url = "github:hercules-ci/flake-parts";
-
     # FIXME: Linux' `webkitgtk_4_1` 2.48 (from `nixos-25.05`) has a white-screen
     # bug when used with Wails v3. For now, let's pin it to the last known-good
     # version (2.44.3) from the old Nixpkgs:
-    nixpkgs-webkitgtk.url = "github:nixos/nixpkgs/nixpkgs-24.05-darwin"; #893e9c69f3324ae99e87f1e8e49014c3c0ab12cf
-    nixpkgs-webkitgtk.flake = false; # only used for webkitgtk_4_1
-
-    flake-compat.url = "github:input-output-hk/flake-compat";
-    flake-compat.flake = false;
-
-    cardano-node.url = "github:IntersectMBO/cardano-node/10.4.1";
-    cardano-node.flake = false; # prevent lockfile explosion
-
+    nixpkgs-webkitgtk = {
+      url = "github:nixos/nixpkgs/nixpkgs-24.05-darwin";
+      flake = false;
+    };
+    flake-compat = {
+      url = "github:edolstra/flake-compat";
+      flake = false;
+    };
+    cardano-node = {
+      url = "github:IntersectMBO/cardano-node/10.4.1";
+      flake = false; # prevent lockfile explosion
+    };
     crane.url = "github:ipetkov/crane";
-
-    cardano-playground.url = "github:input-output-hk/cardano-playground/39ea4db0daa11d6334a55353f685e185765a619b";
-    cardano-playground.flake = false; # otherwise, +9k dependencies in flake.lock…
-
-    cardano-js-sdk.url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.35.10";
-    cardano-js-sdk.flake = false; # we patch it & to prevent lockfile explosion
-
+    cardano-playground = {
+      url = "github:input-output-hk/cardano-playground/39ea4db0daa11d6334a55353f685e185765a619b";
+      flake = false; # otherwise, +9k dependencies in flake.lock…
+    };
+    cardano-js-sdk = {
+      url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.35.10";
+      flake = false; # we patch it & to prevent lockfile explosion
+    };
     blockfrost-platform = {
       # FIXME: update to `main` when this is merged:
       url = "github:blockfrost/blockfrost-platform/pull/471/head";
       flake = false; # to prevent lockfile explosion
     };
-
     ogmios = {
       url = "https://github.com/CardanoSolutions/ogmios.git";
       ref = "refs/tags/v6.11.2";
@@ -37,19 +38,19 @@
       submodules = true;
       flake = false;
     };
-
-    mithril.url = "github:input-output-hk/mithril/2517.1";
-
-    nix-bundle-exe.url = "github:3noch/nix-bundle-exe";
-    nix-bundle-exe.flake = false;
-
+    mithril.url = "github:input-output-hk/mithril/2524.0";
+    nix-bundle-exe = {
+      url = "github:3noch/nix-bundle-exe";
+      flake = false;
+    };
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    devshell.url = "github:numtide/devshell";
-    devshell.inputs.nixpkgs.follows = "nixpkgs";
+    devshell = {
+      url = "github:numtide/devshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs: let
