@@ -58,6 +58,7 @@
     inputs.flake-parts.lib.mkFlake {inherit inputs;} ({config, ...}: {
       imports = [
         inputs.treefmt-nix.flakeModule
+        ./nix/internal/nix-checks.nix
       ];
 
       systems = ["x86_64-linux" "x86_64-darwin" "aarch64-darwin"];
