@@ -11,6 +11,4 @@
 
 extern void lbs__mainthread__windows_post_message();
 
-void lbs__mainthread__schedule() {
-  lbs__mainthread__windows_post_message();
-}
+void lbs__mainthread__schedule() { lbs__mainthread__windows_post_message(); }

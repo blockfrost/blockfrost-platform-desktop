@@ -1,10 +1,11 @@
+//go:build !windows
 // +build !windows
 
 package main
 
 import (
-	"time"
 	"errors"
+	"time"
 )
 
 func probeWindowsNamedPipe(path string, timeout time.Duration) error {

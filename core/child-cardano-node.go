@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
-	"time"
 	"strconv"
 	"strings"
-	"regexp"
+	"time"
 
-	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
 	"blockfrost.io/blockfrost-platform-desktop/constants"
+	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
 
 	"github.com/acarl005/stripansi"
 )
@@ -21,7 +21,7 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 
 	hostname, _ := os.Hostname()
 	trimmedHostname := hostname
-	if (len(trimmedHostname) > 8) {
+	if len(trimmedHostname) > 8 {
 		trimmedHostname = trimmedHostname[:8]
 	}
 	droppedHostname := fmt.Sprintf("[%s:cardano.node.", trimmedHostname)
@@ -52,13 +52,13 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 
 	return ManagedChild{
 		ServiceName: "cardano-node",
-		ExePath: ourpaths.LibexecDir + sep + "cardano-node" + sep + "cardano-node" + ourpaths.ExeSuffix,
-		Version: constants.CardanoNodeVersion,
-		Revision: constants.CardanoNodeRevision,
+		ExePath:     ourpaths.LibexecDir + sep + "cardano-node" + sep + "cardano-node" + ourpaths.ExeSuffix,
+		Version:     constants.CardanoNodeVersion,
+		Revision:    constants.CardanoNodeRevision,
 		MkArgv: func() ([]string, error) {
 			*shared.CardanoNodePort = getFreeTCPPort()
 
-			return []string {
+			return []string{
 				"run",
 				"--topology", shared.CardanoNodeConfigDir + sep + "topology.json",
 				"--database-path", ourpaths.WorkDir + sep + shared.Network + sep +
@@ -70,10 +70,10 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 				"--shutdown-ipc=3",
 			}, nil
 		},
-		MkExtraEnv: func() []string { return []string{} },
-		PostStart: func() error { return nil },
+		MkExtraEnv:  func() []string { return []string{} },
+		PostStart:   func() error { return nil },
 		AllocatePTY: false,
-		StatusCh: statusCh,
+		StatusCh:    statusCh,
 		HealthProbe: func(prev HealthStatus) HealthStatus {
 			tmout := 1 * time.Second
 			var err error
@@ -83,54 +83,70 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 				err = probeUnixSocket(shared.CardanoNodeSocket, tmout)
 			}
 			nextProbeIn := 1 * time.Second
-			if (err == nil) {
+			if err == nil {
 				nextProbeIn = 60 * time.Second
 			}
-			return HealthStatus {
+			return HealthStatus{
 				Initialized: err == nil,
-				DoRestart: false,
+				DoRestart:   false,
 				NextProbeIn: nextProbeIn,
-				LastErr: err,
+				LastErr:     err,
 			}
 		},
 		LogMonitor: func(line string) {
-			reportSyncing := func(slotNum string){
-				pr, _ := strconv.ParseFloat(slotNum, 64)  // fallback
-				if (*shared.SyncProgress >= 0) {
+			reportSyncing := func(slotNum string) {
+				pr, _ := strconv.ParseFloat(slotNum, 64) // fallback
+				if *shared.SyncProgress >= 0 {
 					pr = *shared.SyncProgress
 				}
 				textual := "syncing"
-				if (*shared.SyncProgress == 1.0) {
+				if *shared.SyncProgress == 1.0 {
 					textual = "synced"
 				}
-				statusCh <- StatusAndUrl { Status: textual, Progress: pr,
-					TaskSize: -1, SecondsLeft: -1 }
+				statusCh <- StatusAndUrl{
+					Status: textual, Progress: pr,
+					TaskSize: -1, SecondsLeft: -1,
+				}
 			}
 
 			if ms := reValidatingChunk.FindStringSubmatch(line); len(ms) > 0 {
 				pr, _ := strconv.ParseFloat(ms[1], 64)
-				statusCh <- StatusAndUrl { Status: "validating chunks", Progress: pr/100,
-					TaskSize: -1, SecondsLeft: -1 }
+				statusCh <- StatusAndUrl{
+					Status: "validating chunks", Progress: pr / 100,
+					TaskSize: -1, SecondsLeft: -1,
+				}
 			} else if strings.Index(line, "Started opening Volatile DB") != -1 {
-				statusCh <- StatusAndUrl { Status: "opening volatile DB", Progress: -1,
-					TaskSize: -1, SecondsLeft: -1 }
+				statusCh <- StatusAndUrl{
+					Status: "opening volatile DB", Progress: -1,
+					TaskSize: -1, SecondsLeft: -1,
+				}
 			} else if strings.Index(line, "Started opening Ledger DB") != -1 {
-				statusCh <- StatusAndUrl { Status: "opening ledger DB", Progress: -1,
-					TaskSize: -1, SecondsLeft: -1 }
-			} else if ms :=reReplayingLedger.FindStringSubmatch(line);len(ms)>0 {
+				statusCh <- StatusAndUrl{
+					Status: "opening ledger DB", Progress: -1,
+					TaskSize: -1, SecondsLeft: -1,
+				}
+			} else if ms := reReplayingLedger.FindStringSubmatch(line); len(ms) > 0 {
 				pr, _ := strconv.ParseFloat(ms[1], 64)
-				statusCh <- StatusAndUrl { Status: "replaying ledger", Progress: pr/100,
-					TaskSize: -1, SecondsLeft: -1 }
+				statusCh <- StatusAndUrl{
+					Status: "replaying ledger", Progress: pr / 100,
+					TaskSize: -1, SecondsLeft: -1,
+				}
 			} else if strings.Index(line, "Opened lgr db") != -1 {
-				statusCh <- StatusAndUrl { Status: "replaying ledger", Progress: 1.0,
-					TaskSize: -1, SecondsLeft: -1 }
-			} else if ms := rePushingLedger.FindStringSubmatch(line); len(ms)>0 {
+				statusCh <- StatusAndUrl{
+					Status: "replaying ledger", Progress: 1.0,
+					TaskSize: -1, SecondsLeft: -1,
+				}
+			} else if ms := rePushingLedger.FindStringSubmatch(line); len(ms) > 0 {
 				pr, _ := strconv.ParseFloat(ms[1], 64)
-				statusCh <- StatusAndUrl { Status: "pushing ledger", Progress: pr/100,
-					TaskSize: -1, SecondsLeft: -1 }
+				statusCh <- StatusAndUrl{
+					Status: "pushing ledger", Progress: pr / 100,
+					TaskSize: -1, SecondsLeft: -1,
+				}
 			} else if strings.Index(line, "Initial chain selected") != -1 {
-				statusCh <- StatusAndUrl { Status: "syncing", Progress: -1,
-					TaskSize: -1, SecondsLeft: -1 }
+				statusCh <- StatusAndUrl{
+					Status: "syncing", Progress: -1,
+					TaskSize: -1, SecondsLeft: -1,
+				}
 			} else if ms := reSyncingInit.FindStringSubmatch(line); len(ms) > 0 {
 				reportSyncing(ms[1])
 			} else if ms := reSyncing.FindStringSubmatch(line); len(ms) > 0 {
@@ -140,16 +156,16 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 		LogModifier: func(line string) string {
 			now := time.Now().UTC()
 			line = removeTimestamp(line, now)
-			line = removeTimestamp(line, now.Add(-1 * time.Second))
+			line = removeTimestamp(line, now.Add(-1*time.Second))
 			line = strings.ReplaceAll(line, droppedHostname, "[")
-			if (runtime.GOOS == "windows") {
+			if runtime.GOOS == "windows" {
 				// garbled output on cmd.exe instead:
 				line = stripansi.Strip(line)
 			}
 			return line
 		},
 		TerminateGracefullyByInheritedFd3: true,
-		ForceKillAfter: 15 * time.Second,
-		PostStop: func() error { return nil },
+		ForceKillAfter:                    15 * time.Second,
+		PostStop:                          func() error { return nil },
 	}
 }

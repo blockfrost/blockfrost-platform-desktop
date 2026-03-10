@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package main
@@ -24,8 +25,8 @@ func mkStartupInfoLpReserved2(handlesToMap []syscall.Handle) []byte {
 	//      sizeof(unsigned char) * (count) +              \
 	//      sizeof(uintptr_t) * (count))
 	bufSize := unsafe.Sizeof(int32(0)) +
-		uintptr(len(handlesToMap)) * unsafe.Sizeof(uint8(0)) +
-		uintptr(len(handlesToMap)) * unsafe.Sizeof(uintptr(0))
+		uintptr(len(handlesToMap))*unsafe.Sizeof(uint8(0)) +
+		uintptr(len(handlesToMap))*unsafe.Sizeof(uintptr(0))
 	buf := make([]byte, bufSize)
 
 	if len(handlesToMap) < 3 {
@@ -38,14 +39,14 @@ func mkStartupInfoLpReserved2(handlesToMap []syscall.Handle) []byte {
 
 	binary.LittleEndian.PutUint32(buf, uint32(len(handlesToMap)))
 
-	FOPEN      := uint8(0x01)
-	FEOFLAG    := uint8(0x02)
-	FCRLF      := uint8(0x04)
-	FPIPE      := uint8(0x08)
+	FOPEN := uint8(0x01)
+	FEOFLAG := uint8(0x02)
+	FCRLF := uint8(0x04)
+	FPIPE := uint8(0x08)
 	FNOINHERIT := uint8(0x10)
-	FAPPEND    := uint8(0x20)
-	FDEV       := uint8(0x40)
-	FTEXT      := uint8(0x80)
+	FAPPEND := uint8(0x20)
+	FDEV := uint8(0x40)
+	FTEXT := uint8(0x80)
 
 	// Silence "declared and not used"
 	_ = []byte{FOPEN, FEOFLAG, FCRLF, FPIPE, FNOINHERIT, FAPPEND, FDEV, FTEXT}
@@ -65,17 +66,17 @@ func mkStartupInfoLpReserved2(handlesToMap []syscall.Handle) []byte {
 		//                  CHILD_STDIO_COUNT((buffer)) +      \
 		//                  sizeof(HANDLE) * (fd)))
 		position := unsafe.Sizeof(int32(0)) +
-			uintptr(len(handlesToMap)) * unsafe.Sizeof(uint8(0)) +
-			uintptr(idx) * unsafe.Sizeof(uintptr(0))
+			uintptr(len(handlesToMap))*unsafe.Sizeof(uint8(0)) +
+			uintptr(idx)*unsafe.Sizeof(uintptr(0))
 		binary.LittleEndian.PutUint64(buf[position:], uint64(uintptr(value)))
 	}
 
 	for idx, handle := range handlesToMap {
 		// XXX: if we passed something else than an os.Pipe() end, the flags would likely have to change!
 		if idx <= 2 {
-			setFlags(idx, FOPEN | FDEV)
+			setFlags(idx, FOPEN|FDEV)
 		} else {
-			setFlags(idx, FOPEN | FPIPE)
+			setFlags(idx, FOPEN|FPIPE)
 		}
 		setHandle(idx, handle)
 	}
@@ -87,7 +88,7 @@ func _get_osfhandle(fd uintptr) (uintptr, error) {
 	// Windows SDK → Include/10.0.19041.0/um/handleapi.h contains:
 	// #define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
 	// ^ means maximum value, so the same bits as casting a -1 to uint
-	var INVALID_HANDLE_VALUE = ^uintptr(0)
+	INVALID_HANDLE_VALUE := ^uintptr(0)
 
 	dll, err := syscall.LoadDLL("msvcrt.dll")
 	if err != nil {

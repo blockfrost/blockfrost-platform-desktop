@@ -1,11 +1,11 @@
 package appconfig
 
 import (
-	"fmt"
-	"os"
-	"io/ioutil"
-	"path/filepath"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
 )
@@ -15,9 +15,9 @@ const (
 )
 
 type AppConfig struct {
-	ApiPort              int     `json:"apiPort"`
-	CardanoSubmitApiPort int     `json:"cardanoSubmitApiPort"`
-	LastNetwork          string  `json:"lastNetwork"`
+	ApiPort              int              `json:"apiPort"`
+	CardanoSubmitApiPort int              `json:"cardanoSubmitApiPort"`
+	LastNetwork          string           `json:"lastNetwork"`
 	ForceMithrilSnapshot MithrilOverrides `json:"forceMithrilSnapshot"`
 }
 
@@ -28,21 +28,21 @@ type MithrilOverrides struct {
 }
 
 type MithrilOverride struct {
-	Digest string `json:"digest"`
+	Digest    string `json:"digest"`
 	LocalPath string `json:"localPath"`
 }
 
 func Load() AppConfig {
 	configFile := ourpaths.WorkDir + string(filepath.Separator) + "app-config.json"
 
-	defaults := AppConfig {
-		ApiPort: 52910,
+	defaults := AppConfig{
+		ApiPort:              52910,
 		CardanoSubmitApiPort: 52911,
-		LastNetwork: "mainnet",
-		ForceMithrilSnapshot: MithrilOverrides {
-			Preview: MithrilOverride { Digest: "", LocalPath: "" },
-			Preprod: MithrilOverride { Digest: "", LocalPath: "" },
-			Mainnet: MithrilOverride { Digest: "", LocalPath: "" },
+		LastNetwork:          "mainnet",
+		ForceMithrilSnapshot: MithrilOverrides{
+			Preview: MithrilOverride{Digest: "", LocalPath: ""},
+			Preprod: MithrilOverride{Digest: "", LocalPath: ""},
+			Mainnet: MithrilOverride{Digest: "", LocalPath: ""},
 		},
 	}
 
@@ -77,7 +77,7 @@ func Save(config AppConfig) {
 		return
 	}
 
-	err = ioutil.WriteFile(configFile, data, 0644)
+	err = ioutil.WriteFile(configFile, data, 0o644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s[%d]: cannot save the config file: %s: %s\n",
 			OurLogPrefix, os.Getpid(), configFile, err)

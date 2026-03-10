@@ -37,7 +37,7 @@ func probeUnixSocket(path string, timeout time.Duration) error {
 }
 
 func probeHttp200(url string, timeout time.Duration) error {
-	return probeHttpFor([]int{ http.StatusOK }, url, timeout)
+	return probeHttpFor([]int{http.StatusOK}, url, timeout)
 }
 
 func probeHttpFor(acceptedStatusCodes []int, url string, timeout time.Duration) error {

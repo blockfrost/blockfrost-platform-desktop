@@ -3,32 +3,32 @@ package main
 import (
 	"embed"
 	_ "embed"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
-	"io/ioutil"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"time"
-	"encoding/json"
-	"net/http"
 
-	t "blockfrost.io/blockfrost-platform-desktop/types"
-	"blockfrost.io/blockfrost-platform-desktop/constants"
-	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
 	"blockfrost.io/blockfrost-platform-desktop/appconfig"
+	"blockfrost.io/blockfrost-platform-desktop/constants"
 	"blockfrost.io/blockfrost-platform-desktop/httpapi"
-	"blockfrost.io/blockfrost-platform-desktop/ui"
-	"blockfrost.io/blockfrost-platform-desktop/mithrilcache"
 	"blockfrost.io/blockfrost-platform-desktop/mainthread"
+	"blockfrost.io/blockfrost-platform-desktop/mithrilcache"
+	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
+	t "blockfrost.io/blockfrost-platform-desktop/types"
+	"blockfrost.io/blockfrost-platform-desktop/ui"
 
+	"github.com/allan-simon/go-singleinstance"
+	"github.com/getlantern/systray"
 	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/load"
-	"github.com/getlantern/systray"
-	"github.com/allan-simon/go-singleinstance"
+	"github.com/shirou/gopsutil/v3/mem"
 
 	wails3_application "github.com/wailsapp/wails/v3/pkg/application"
 	wails3_events "github.com/wailsapp/wails/v3/pkg/events"
@@ -55,7 +55,7 @@ func main() {
 	sep := string(filepath.Separator)
 
 	fmt.Printf("%s[%d]: work directory: %s\n", OurLogPrefix, os.Getpid(), ourpaths.WorkDir)
-	os.MkdirAll(ourpaths.WorkDir, 0755)
+	os.MkdirAll(ourpaths.WorkDir, 0o755)
 	os.Chdir(ourpaths.WorkDir)
 
 	lockFile := ourpaths.WorkDir + sep + "instance.lock"
@@ -68,15 +68,18 @@ func main() {
 
 	logFile := ourpaths.WorkDir + sep + "logs" + sep + time.Now().UTC().Format("2006-01-02--15-04-05Z") + ".log"
 	fmt.Printf("%s[%d]: logging to file: %s\n", OurLogPrefix, os.Getpid(), logFile)
-	os.MkdirAll(filepath.Dir(logFile), 0755)
+	os.MkdirAll(filepath.Dir(logFile), 0o755)
 	closeOutputs := duplicateOutputToFile(logFile)
 	defer closeOutputs()
 
 	var stdArch string
 	switch runtime.GOARCH {
-	case "amd64": stdArch = "x86_64"
-	case "arm64": stdArch = "aarch64"
-	default: stdArch = runtime.GOARCH
+	case "amd64":
+		stdArch = "x86_64"
+	case "arm64":
+		stdArch = "aarch64"
+	default:
+		stdArch = runtime.GOARCH
 	}
 
 	fmt.Printf("%s[%d]: running as %s@%s\n", OurLogPrefix, os.Getpid(),
@@ -91,7 +94,7 @@ func main() {
 		hostInfo.OS, hostInfo.Platform, hostInfo.PlatformVersion, hostInfo.PlatformFamily)
 	fmt.Printf("%s[%d]: CPU: %s (%d physical thread(s), %d core(s) each, at %.2f GHz)\n",
 		OurLogPrefix, os.Getpid(),
-		cpuInfo[0].ModelName, len(cpuInfo), cpuInfo[0].Cores, float64(cpuInfo[0].Mhz) / 1000.0)
+		cpuInfo[0].ModelName, len(cpuInfo), cpuInfo[0].Cores, float64(cpuInfo[0].Mhz)/1000.0)
 
 	logSystemHealth()
 	go func() {
@@ -102,7 +105,9 @@ func main() {
 	}()
 
 	networks, err := readAvailableNetworks()
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 
 	appConfig := appconfig.Load()
 
@@ -120,60 +125,62 @@ func main() {
 
 		triggerMithril := make(chan struct{})
 
-		go func(){
+		go func() {
 			reverseNetworks := map[string]t.NetworkMagic{}
-			for a, b := range networks { reverseNetworks[b] = a }
+			for a, b := range networks {
+				reverseNetworks[b] = a
+			}
 			for name := range networkFromUI {
 				networkToManager <- name
 				networkToHttp <- reverseNetworks[name]
 			}
 		}()
 
-		go func(){
+		go func() {
 			for ss := range serviceUpdateFromManager {
 				serviceUpdateToUI <- ss
 				serviceUpdateToHttp <- ss
 			}
 		}()
 
-		serviceUpdateFromManager <- t.ServiceStatus {
+		serviceUpdateFromManager <- t.ServiceStatus{
 			ServiceName: "blockfrost-platform-desktop",
-			Status: "listening",
-			Progress: -1,
-			TaskSize: -1,
+			Status:      "listening",
+			Progress:    -1,
+			TaskSize:    -1,
 			SecondsLeft: -1,
-			Url: fmt.Sprintf("http://127.0.0.1:%d", appConfig.ApiPort),
-			Version: constants.BlockfrostPlatformDesktopVersion,
-			Revision: constants.BlockfrostPlatformDesktopRevision,
+			Url:         fmt.Sprintf("http://127.0.0.1:%d", appConfig.ApiPort),
+			Version:     constants.BlockfrostPlatformDesktopVersion,
+			Revision:    constants.BlockfrostPlatformDesktopRevision,
 		}
 
 		initiateShutdownCh := make(chan struct{}, 16)
 
-		return ui.CommChannels {
-			ServiceUpdate: serviceUpdateToUI,
-			BlockRestartUI: blockRestartUI,
-			HttpSwitchesNetwork: networkFromHttp,
-			NetworkSwitch: networkFromUI,
-			InitiateShutdownCh: initiateShutdownCh,
-			TriggerMithril: triggerMithril,
-		}, CommChannels_Manager {
-			ServiceUpdate: serviceUpdateFromManager,
-			BlockRestartUI: blockRestartUI,
-			NetworkSwitch: networkToManager,
-			InitiateShutdownCh: initiateShutdownCh,
-			TriggerMithril: triggerMithril,
-		}, httpapi.CommChannels {
-			SwitchNetwork: networkFromHttp,
-			SwitchedNetwork: networkToHttp,
-			ServiceUpdate: serviceUpdateToHttp,
-		}
+		return ui.CommChannels{
+				ServiceUpdate:       serviceUpdateToUI,
+				BlockRestartUI:      blockRestartUI,
+				HttpSwitchesNetwork: networkFromHttp,
+				NetworkSwitch:       networkFromUI,
+				InitiateShutdownCh:  initiateShutdownCh,
+				TriggerMithril:      triggerMithril,
+			}, CommChannels_Manager{
+				ServiceUpdate:      serviceUpdateFromManager,
+				BlockRestartUI:     blockRestartUI,
+				NetworkSwitch:      networkToManager,
+				InitiateShutdownCh: initiateShutdownCh,
+				TriggerMithril:     triggerMithril,
+			}, httpapi.CommChannels{
+				SwitchNetwork:   networkFromHttp,
+				SwitchedNetwork: networkToHttp,
+				ServiceUpdate:   serviceUpdateToHttp,
+			}
 	}()
 
 	// XXX: os.Interrupt is the regular SIGINT on Unix, but also something rare on Windows
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
 
-	go func(){
+	go func() {
 		alreadySignaled := false
 		for sig := range sigCh {
 			if !alreadySignaled {
@@ -188,30 +195,34 @@ func main() {
 		}
 	}()
 
-	go func(){ for {
-		err := httpapi.Run(appConfig, commHttp, networks)
-		fmt.Fprintf(os.Stderr, "%s[%d]: HTTP server failed: %v\n",
-			OurLogPrefix, os.Getpid(), err)
-		time.Sleep(1 * time.Second)
-	}}()
-
-	mithrilCachePort := -1
-	if (appConfig.ForceMithrilSnapshot.Preview.Digest != ""	||
-		appConfig.ForceMithrilSnapshot.Preprod.Digest != ""	||
-		appConfig.ForceMithrilSnapshot.Mainnet.Digest != "") {
-		mithrilCachePort = getFreeTCPPort()
-		go func(){ for {
-			err := mithrilcache.Run(appConfig, mithrilCachePort)
-			fmt.Fprintf(os.Stderr, "%s[%d]: mithril-cache HTTP server failed: %v\n",
+	go func() {
+		for {
+			err := httpapi.Run(appConfig, commHttp, networks)
+			fmt.Fprintf(os.Stderr, "%s[%d]: HTTP server failed: %v\n",
 				OurLogPrefix, os.Getpid(), err)
 			time.Sleep(1 * time.Second)
-		}}()
+		}
+	}()
+
+	mithrilCachePort := -1
+	if appConfig.ForceMithrilSnapshot.Preview.Digest != "" ||
+		appConfig.ForceMithrilSnapshot.Preprod.Digest != "" ||
+		appConfig.ForceMithrilSnapshot.Mainnet.Digest != "" {
+		mithrilCachePort = getFreeTCPPort()
+		go func() {
+			for {
+				err := mithrilcache.Run(appConfig, mithrilCachePort)
+				fmt.Fprintf(os.Stderr, "%s[%d]: mithril-cache HTTP server failed: %v\n",
+					OurLogPrefix, os.Getpid(), err)
+				time.Sleep(1 * time.Second)
+			}
+		}()
 	}
 
 	wailsApp := wails3_application.New(wails3_application.Options{
 		Name:        "blockfrost-platform-desktop",
 		Description: "Full-node headless wallet backend with standardized API",
-		Services: []wails3_application.Service{},
+		Services:    []wails3_application.Service{},
 		Assets: wails3_application.AssetOptions{
 			Handler: (func() http.Handler {
 				regular := wails3_application.AssetFileServerFS(webUIAssets)
@@ -233,12 +244,12 @@ func main() {
 		},
 		Windows: wails3_application.WindowsOptions{
 			DisableQuitOnLastWindowClosed: true,
-			WebviewUserDataPath: ourpaths.WorkDir,
-			WebviewBrowserPath: ourpaths.LibexecDir + sep + "webview2",
+			WebviewUserDataPath:           ourpaths.WorkDir,
+			WebviewBrowserPath:            ourpaths.LibexecDir + sep + "webview2",
 		},
 		Linux: wails3_application.LinuxOptions{
 			DisableQuitOnLastWindowClosed: true,
-			ProgramName: "blockfrost-platform-desktop",
+			ProgramName:                   "blockfrost-platform-desktop",
 		},
 	})
 
@@ -249,12 +260,12 @@ func main() {
 		currentUrl := ""
 		for nextUrl := range openURLInWebUI {
 			if currentlyOpenWindow != nil {
-				if currentUrl != nextUrl {  // one less flicker
+				if currentUrl != nextUrl { // one less flicker
 					currentlyOpenWindow.SetURL(nextUrl)
 				}
 			} else {
 				currentlyOpenWindow = wailsApp.NewWebviewWindowWithOptions(wails3_application.WebviewWindowOptions{
-					Title: "blockfrost-platform-desktop",
+					Title:  "blockfrost-platform-desktop",
 					Hidden: false,
 					ShouldClose: func(window *wails3_application.WebviewWindow) bool {
 						// window.SetURL("about:blank")  // decrease resource usage, a temporary solution
@@ -266,8 +277,8 @@ func main() {
 					},
 					Mac: wails3_application.MacWindow{
 						InvisibleTitleBarHeight: 50,
-						Backdrop: wails3_application.MacBackdropTranslucent,
-						TitleBar: wails3_application.MacTitleBarHiddenInset,
+						Backdrop:                wails3_application.MacBackdropTranslucent,
+						TitleBar:                wails3_application.MacTitleBarHiddenInset,
 					},
 					BackgroundColour: wails3_application.NewRGB(0xff, 0xff, 0xff),
 					// Beware, on Linux the root is "wails://localhost/", on Windows it’s "http://wails.localhost/".
@@ -284,7 +295,7 @@ func main() {
 	// XXX: On macOS both wails.Quit and systray.Quit call [NSApp terminate:nil], which is a hard exit,
 	// and Go’s deferred functions won’t run. Therefore wailsApp.Quit() has to be the last thing we call.
 	go func() {
-		defer func(){
+		defer func() {
 			fmt.Printf("%s[%d]: all good, exiting\n", OurLogPrefix, os.Getpid())
 			wailsApp.Quit()
 			if runtime.GOOS == "windows" {
@@ -324,12 +335,12 @@ func main() {
 }
 
 type CommChannels_Manager struct {
-	ServiceUpdate        chan<- t.ServiceStatus
-	BlockRestartUI       chan<- bool
+	ServiceUpdate  chan<- t.ServiceStatus
+	BlockRestartUI chan<- bool
 
-	NetworkSwitch        <-chan string
-	InitiateShutdownCh   <-chan struct{}
-	TriggerMithril       <-chan struct{}
+	NetworkSwitch      <-chan string
+	InitiateShutdownCh <-chan struct{}
+	TriggerMithril     <-chan struct{}
 }
 
 func logSystemHealth() {
@@ -341,8 +352,8 @@ func logSystemHealth() {
 	}
 
 	fmt.Printf("%s: memory: %.2fGi total, %.2fGi free\n", ourPrefix,
-		float64(memInfo.Total) / (1024.0 * 1024.0 * 1024.0),
-		float64(memInfo.Free) / (1024.0 * 1024.0 * 1024.0))
+		float64(memInfo.Total)/(1024.0*1024.0*1024.0),
+		float64(memInfo.Free)/(1024.0*1024.0*1024.0))
 
 	avgStat, err := load.Avg()
 	if err != nil {
@@ -358,14 +369,18 @@ func readAvailableNetworks() (map[t.NetworkMagic]string, error) {
 	rv := map[t.NetworkMagic]string{}
 	sep := string(filepath.Separator)
 	names, err := readDirAsStrings(ourpaths.NetworkConfigDir)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	for _, name := range names {
 		configFile := ourpaths.NetworkConfigDir + sep + name + sep + "config.json"
 
 		configBytes, err := ioutil.ReadFile(configFile)
 		var config map[string]interface{}
 		err = json.Unmarshal(configBytes, &config)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 
 		byronFile := config["ByronGenesisFile"].(string)
 		if !filepath.IsAbs(byronFile) {
@@ -375,7 +390,9 @@ func readAvailableNetworks() (map[t.NetworkMagic]string, error) {
 		byronBytes, err := ioutil.ReadFile(byronFile)
 		var byron map[string]interface{}
 		err = json.Unmarshal(byronBytes, &byron)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 
 		magic := t.NetworkMagic(int(
 			byron["protocolConsts"].(map[string]interface{})["protocolMagic"].(float64)))
@@ -387,7 +404,9 @@ func readAvailableNetworks() (map[t.NetworkMagic]string, error) {
 
 func readDirAsStrings(dirPath string) ([]string, error) {
 	files, err := ioutil.ReadDir(dirPath)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	rv := []string{}
 	for _, file := range files {
 		name := file.Name()

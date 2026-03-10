@@ -16,8 +16,10 @@ import "C"
 
 // XXX: we can’t pass Go function pointers to C, so let’s use a synchronized global variable instead
 
-var mu sync.Mutex
-var currentFunction *func()
+var (
+	mu              sync.Mutex
+	currentFunction *func()
+)
 
 func Schedule(f func()) {
 	mu.Lock()
@@ -35,4 +37,3 @@ func lbs__mainthread__call_current_function() {
 	defer freeCurrentFunction()
 	(*currentFunction)()
 }
-

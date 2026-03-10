@@ -1,11 +1,14 @@
-{ inputs, targetSystem }:
-
-let
-  buildSystem = if targetSystem == "x86_64-windows" then "x86_64-linux" else targetSystem;
+{
+  inputs,
+  targetSystem,
+}: let
+  buildSystem =
+    if targetSystem == "x86_64-windows"
+    then "x86_64-linux"
+    else targetSystem;
   pkgs = inputs.nixpkgs.legacyPackages.${buildSystem};
   inherit (pkgs) lib;
 in rec {
-
   flake-compat = import inputs.flake-compat;
 
   prettyName = "Blockfrost Platform Desktop";
@@ -39,9 +42,9 @@ in rec {
       done
     '';
 
-  cardanoNodeFlake = (flake-compat { src = inputs.cardano-node; }).defaultNix;
+  cardanoNodeFlake = (flake-compat {src = inputs.cardano-node;}).defaultNix;
 
-  blockfrostPlatformFlake = (flake-compat { src = inputs.blockfrost-platform; }).defaultNix;
+  blockfrostPlatformFlake = (flake-compat {src = inputs.blockfrost-platform;}).defaultNix;
 
   ogmiosPatched = {
     outPath = toString (pkgs.runCommand "ogmios-patched" {} ''
@@ -62,59 +65,88 @@ in rec {
   ogmiosProject = haskell-nix.project {
     compiler-nix-name = "ghc96";
     projectFileName = "cabal.project";
-    inputMap = { "https://input-output-hk.github.io/cardano-haskell-packages" = cardanoNodeFlake.inputs.CHaP; };
+    inputMap = {"https://input-output-hk.github.io/cardano-haskell-packages" = cardanoNodeFlake.inputs.CHaP;};
     src = ogmiosPatched + "/server";
     modules = [
-      ({ config, lib, pkgs, ... }: {
-        packages.cardano-crypto-praos.components.library.pkgconfig = lib.mkForce [ [ pkgs.libsodium-vrf ] ];
-        packages.cardano-crypto-class.components.library.pkgconfig = lib.mkForce [ ([ pkgs.libsodium-vrf pkgs.secp256k1 ]
-          ++ (if pkgs ? libblst then [pkgs.libblst] else [])) ];
-        packages.ogmios.components.library.preConfigure = "export GIT_SHA=${inputs.ogmios.rev}";
+      ({
+        lib,
+        pkgs,
+        ...
+      }: {
+        packages = {
+          cardano-crypto-praos.components.library.pkgconfig = lib.mkForce [[pkgs.libsodium-vrf]];
+          cardano-crypto-class.components.library.pkgconfig = lib.mkForce [
+            ([pkgs.libsodium-vrf pkgs.secp256k1]
+              ++ (
+                if pkgs ? libblst
+                then [pkgs.libblst]
+                else []
+              ))
+          ];
+          ogmios.components.library.preConfigure = "export GIT_SHA=${inputs.ogmios.rev}";
+        };
       })
-      ({ lib, pkgs, ...}: {
-        packages.entropy.package.buildType = lib.mkForce "Simple";
-        packages.ouroboros-network-framework.doHaddock = false;
+      ({lib, ...}: {
+        packages = {
+          entropy.package.buildType = lib.mkForce "Simple";
+          ouroboros-network-framework.doHaddock = false;
+        };
       })
     ];
   };
 
-  ogmios = {
-    x86_64-linux = ogmiosProject.projectCross.musl64.hsPkgs.ogmios.components.exes.ogmios;
-    x86_64-windows = ogmiosProject.projectCross.mingwW64.hsPkgs.ogmios.components.exes.ogmios;
-    x86_64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
-    aarch64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
-  }.${targetSystem};
+  ogmios =
+    {
+      x86_64-linux = ogmiosProject.projectCross.musl64.hsPkgs.ogmios.components.exes.ogmios;
+      x86_64-windows = ogmiosProject.projectCross.mingwW64.hsPkgs.ogmios.components.exes.ogmios;
+      x86_64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
+      aarch64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
+    }.${
+      targetSystem
+    };
 
   blockfrost-platform =
-    blockfrostPlatformFlake.internal.${targetSystem}.bundle // {
+    blockfrostPlatformFlake.internal.${targetSystem}.bundle
+    // {
       inherit (blockfrostPlatformFlake.internal.${targetSystem}.blockfrost-platform) version;
     };
 
-  cardano-node = {
-    x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-node;
-    x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-node;
-    x86_64-darwin = cardanoNodeFlake.packages.x86_64-darwin.cardano-node;
-    aarch64-darwin = cardanoNodeFlake.packages.aarch64-darwin.cardano-node;
-  }.${targetSystem};
+  cardano-node =
+    {
+      x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-node;
+      x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-node;
+      x86_64-darwin = cardanoNodeFlake.packages.x86_64-darwin.cardano-node;
+      aarch64-darwin = cardanoNodeFlake.packages.aarch64-darwin.cardano-node;
+    }.${
+      targetSystem
+    };
 
-  cardano-submit-api = {
-    x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-submit-api;
-    x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-submit-api;
-    x86_64-darwin = cardanoNodeFlake.packages.x86_64-darwin.cardano-submit-api;
-    aarch64-darwin = cardanoNodeFlake.packages.aarch64-darwin.cardano-submit-api;
-  }.${targetSystem};
+  cardano-submit-api =
+    {
+      x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-submit-api;
+      x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-submit-api;
+      x86_64-darwin = cardanoNodeFlake.packages.x86_64-darwin.cardano-submit-api;
+      aarch64-darwin = cardanoNodeFlake.packages.aarch64-darwin.cardano-submit-api;
+    }.${
+      targetSystem
+    };
 
-  postgresPackage = {
-    x86_64-linux = pkgs.postgresql_15_jit;
-    x86_64-darwin = pkgs.postgresql_15_jit;
-    aarch64-darwin = pkgs.postgresql_15_jit;
-    x86_64-windows = let
-      version = "15.4-1";
-    in (pkgs.fetchurl {
-      url = "https://get.enterprisedb.com/postgresql/postgresql-${version}-windows-x64.exe";
-      hash = "sha256-Su4VKwJkeQ6HqCXTIZIK2c4AJHloqm72BZLs2JCnmN8=";
-    }) // { inherit version; };
-  }.${targetSystem};
+  postgresPackage =
+    {
+      x86_64-linux = pkgs.postgresql_15_jit;
+      x86_64-darwin = pkgs.postgresql_15_jit;
+      aarch64-darwin = pkgs.postgresql_15_jit;
+      x86_64-windows = let
+        version = "15.4-1";
+      in
+        (pkgs.fetchurl {
+          url = "https://get.enterprisedb.com/postgresql/postgresql-${version}-windows-x64.exe";
+          hash = "sha256-Su4VKwJkeQ6HqCXTIZIK2c4AJHloqm72BZLs2JCnmN8=";
+        })
+        // {inherit version;};
+    }.${
+      targetSystem
+    };
 
   blockfrost-platform-desktop-exe-vendorHash = "sha256-3mz58RaOQvbZbTMCDwXTmIWUqMqpPlzy8222kvm9SOU=";
 
@@ -122,22 +154,25 @@ in rec {
     package constants
 
     const (
-      BlockfrostPlatformDesktopVersion = ${__toJSON ourVersion}
-      BlockfrostPlatformDesktopRevision = ${__toJSON (inputs.self.rev or "dirty")}
-      CardanoNodeVersion = ${__toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
-      CardanoNodeRevision = ${__toJSON inputs.cardano-node.rev}
-      BlockfrostPlatformOnly = ${__toJSON blockfrostPlatformOnly}
-      BlockfrostPlatformVersion = ${__toJSON blockfrost-platform.version}
-      BlockfrostPlatformRevision = ${__toJSON inputs.blockfrost-platform.rev}
-      OgmiosVersion = ${__toJSON ogmios.version}
-      OgmiosRevision = ${__toJSON inputs.ogmios.rev}
-      DolosVersion = ${__toJSON dolos.version}
-      DolosRevision = ${__toJSON blockfrostPlatformFlake.inputs.dolos.rev}
-      PostgresVersion = ${__toJSON postgresPackage.version}
-      PostgresRevision = ${__toJSON postgresPackage.version}
-      CardanoJsSdkVersion = ${__toJSON ((__fromJSON (__readFile (inputs.cardano-js-sdk + "/packages/cardano-services/package.json"))).version)}
-      CardanoJsSdkRevision = ${__toJSON inputs.cardano-js-sdk.rev}
-      CardanoJsSdkBuildInfo = ${__toJSON (let self = inputs.cardano-js-sdk; in builtins.toJSON {
+      BlockfrostPlatformDesktopVersion = ${builtins.toJSON ourVersion}
+      BlockfrostPlatformDesktopRevision = ${builtins.toJSON (inputs.self.rev or "dirty")}
+      CardanoNodeVersion = ${builtins.toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
+      CardanoNodeRevision = ${builtins.toJSON inputs.cardano-node.rev}
+      BlockfrostPlatformOnly = ${builtins.toJSON blockfrostPlatformOnly}
+      BlockfrostPlatformVersion = ${builtins.toJSON blockfrost-platform.version}
+      BlockfrostPlatformRevision = ${builtins.toJSON inputs.blockfrost-platform.rev}
+      OgmiosVersion = ${builtins.toJSON ogmios.version}
+      OgmiosRevision = ${builtins.toJSON inputs.ogmios.rev}
+      DolosVersion = ${builtins.toJSON dolos.version}
+      DolosRevision = ${builtins.toJSON blockfrostPlatformFlake.inputs.dolos.rev}
+      PostgresVersion = ${builtins.toJSON postgresPackage.version}
+      PostgresRevision = ${builtins.toJSON postgresPackage.version}
+      CardanoJsSdkVersion = ${builtins.toJSON (builtins.fromJSON (builtins.readFile (inputs.cardano-js-sdk + "/packages/cardano-services/package.json"))).version}
+      CardanoJsSdkRevision = ${builtins.toJSON inputs.cardano-js-sdk.rev}
+      CardanoJsSdkBuildInfo = ${builtins.toJSON (let
+      self = inputs.cardano-js-sdk;
+    in
+      builtins.toJSON {
         inherit (self) lastModified lastModifiedDate rev;
         shortRev = self.shortRev or "no rev";
         extra = {
@@ -146,20 +181,20 @@ in rec {
           path = self.outPath;
         };
       })}
-      MithrilClientRevision = ${__toJSON inputs.mithril.sourceInfo.rev or "dirty"}
-      MithrilClientVersion = ${__toJSON mithril-bin.version}
-      MithrilGVKPreview = ${__toJSON mithrilGenesisVerificationKeys.preview}
-      MithrilGVKPreprod = ${__toJSON mithrilGenesisVerificationKeys.preprod}
-      MithrilGVKMainnet = ${__toJSON mithrilGenesisVerificationKeys.mainnet}
-      MithrilAVKPreview = ${__toJSON mithrilAncillaryVerificationKeys.preview}
-      MithrilAVKPreprod = ${__toJSON mithrilAncillaryVerificationKeys.preprod}
-      MithrilAVKMainnet = ${__toJSON mithrilAncillaryVerificationKeys.mainnet}
-      MithrilAggregatorPreview = ${__toJSON mithrilAggregator.preview}
-      MithrilAggregatorPreprod = ${__toJSON mithrilAggregator.preprod}
-      MithrilAggregatorMainnet = ${__toJSON mithrilAggregator.mainnet}
-      NetworkStartPreview uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/preview/byron-genesis.json")).startTime}
-      NetworkStartPreprod uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/preprod/byron-genesis.json")).startTime}
-      NetworkStartMainnet uint64 = ${__toJSON (__fromJSON (__readFile "${cardano-node-configs}/mainnet/byron-genesis.json")).startTime}
+      MithrilClientRevision = ${builtins.toJSON inputs.mithril.sourceInfo.rev or "dirty"}
+      MithrilClientVersion = ${builtins.toJSON mithril-bin.version}
+      MithrilGVKPreview = ${builtins.toJSON mithrilGenesisVerificationKeys.preview}
+      MithrilGVKPreprod = ${builtins.toJSON mithrilGenesisVerificationKeys.preprod}
+      MithrilGVKMainnet = ${builtins.toJSON mithrilGenesisVerificationKeys.mainnet}
+      MithrilAVKPreview = ${builtins.toJSON mithrilAncillaryVerificationKeys.preview}
+      MithrilAVKPreprod = ${builtins.toJSON mithrilAncillaryVerificationKeys.preprod}
+      MithrilAVKMainnet = ${builtins.toJSON mithrilAncillaryVerificationKeys.mainnet}
+      MithrilAggregatorPreview = ${builtins.toJSON mithrilAggregator.preview}
+      MithrilAggregatorPreprod = ${builtins.toJSON mithrilAggregator.preprod}
+      MithrilAggregatorMainnet = ${builtins.toJSON mithrilAggregator.mainnet}
+      NetworkStartPreview uint64 = ${builtins.toJSON (builtins.fromJSON (builtins.readFile "${cardano-node-configs}/preview/byron-genesis.json")).startTime}
+      NetworkStartPreprod uint64 = ${builtins.toJSON (builtins.fromJSON (builtins.readFile "${cardano-node-configs}/preprod/byron-genesis.json")).startTime}
+      NetworkStartMainnet uint64 = ${builtins.toJSON (builtins.fromJSON (builtins.readFile "${cardano-node-configs}/mainnet/byron-genesis.json")).startTime}
     )
   '';
 
@@ -176,41 +211,45 @@ in rec {
     name = "swagger-ui";
     version = "5.2.0";
     src = pkgs.fetchFromGitHub {
-      owner = "swagger-api"; repo = name;
+      owner = "swagger-api";
+      repo = name;
       rev = "v${version}";
       hash = "sha256-gF2bUTr181MePC+FJN+BV2KQ7ZEW7sa4Mib7K0sgi4s=";
     };
-  in pkgs.runCommand "${name}-${version}" {} ''
-    cp -r ${src}/dist $out
-    chmod -R +w $out
-    sed -r 's|url:.*,|url: window.location.origin + "/openapi.json",|' -i $out/swagger-initializer.js
-  '';
+  in
+    pkgs.runCommand "${name}-${version}" {} ''
+      cp -r ${src}/dist $out
+      chmod -R +w $out
+      sed -r 's|url:.*,|url: window.location.origin + "/openapi.json",|' -i $out/swagger-initializer.js
+    '';
 
   # OpenAPI linter
   vacuum = pkgs.buildGoModule rec {
     pname = "vacuum";
     version = "0.2.6";
     src = pkgs.fetchFromGitHub {
-      owner = "daveshanley"; repo = pname;
+      owner = "daveshanley";
+      repo = pname;
       rev = "v${version}";
       hash = "sha256-G0NzCqxu1rDrgnOrbDGuOv4Vq9lZJGeNyXzKRBvtf4o=";
     };
     vendorHash = "sha256-5aAnKf/pErRlugyk1/iJMaI4YtY/2Vs8GpB3y8tsjh4=";
-    doCheck = false;  # some segfault in OAS 2.0 tests…
+    doCheck = false; # some segfault in OAS 2.0 tests…
   };
 
   openApiJson = let
-    src = builtins.path { path = coreSrc + "/openapi.json"; };
-  in pkgs.runCommand "openapi.json" {
-    buildInputs = [ pkgs.jq vacuum ];
-  } ''
-    vacuum lint --details ${src}
+    src = builtins.path {path = coreSrc + "/openapi.json";};
+  in
+    pkgs.runCommand "openapi.json" {
+      buildInputs = [pkgs.jq vacuum];
+    } ''
+      vacuum lint --details ${src}
 
-    jq --sort-keys\
-      --arg title ${lib.escapeShellArg "${prettyName} API"} \
-      '.info.title = $title' \
-      ${src} >$out
-  '';
+      jq --sort-keys\
+        --arg title ${lib.escapeShellArg "${prettyName} API"} \
+        '.info.title = $title' \
+        ${src} >$out
+    '';
 
   mithrilGenesisVerificationKeys = {
     preview = builtins.readFile (inputs.mithril + "/mithril-infra/configuration/pre-release-preview/genesis.vkey");
@@ -230,36 +269,25 @@ in rec {
     mainnet = "https://aggregator.release-mainnet.api.mithril.network/aggregator";
   };
 
-  # They removed `outputs.packages.x86_64-darwin`, see
-  # <https://github.com/input-output-hk/mithril/issues/2250#issuecomment-2922616781>.
-  mithrilFlake = (flake-compat {
-    src = {
-      outPath = toString (pkgs.runCommand "mithril-patched" {} ''
-        cp -r ${inputs.mithril} $out
-        chmod -R +w $out
-        sed -r 's/"x86_64-linux" "aarch64-linux" "aarch64-darwin"/\0 "x86_64-darwin"/g' -i $out/flake.nix
-        sed -r "s/self'/self/g" -i $out/flake.nix
-      '');
-      inherit (inputs.mithril.sourceInfo) rev shortRev lastModified lastModifiedDate;
-    };
-    override-inputs = inputs.mithril.inputs;
-  }).defaultNix;
-
   # FIXME: build from source (Linux, and Darwins are available in their flake.nix, but Windows not)
   mithril-bin = let
-    ver = (__fromJSON (__readFile (inputs.self + "/flake.lock"))).nodes.mithril.original.ref or "unknown-ref";
-  in {
-    x86_64-linux = mithrilFlake.packages.${targetSystem}.mithril-client-cli;
-    x86_64-windows = pkgs.fetchurl {
-      name = "mithril-${ver}-windows-x64.tar.gz";
-      url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
-      hash = "sha256-iJPCnFvZ9uY4OEpEtPPAtuXW3VWehuXh8R7XF0lYjbY=";
-    };
-    x86_64-darwin = mithrilFlake.packages.${targetSystem}.mithril-client-cli;
-    aarch64-darwin = mithrilFlake.packages.${targetSystem}.mithril-client-cli;
-  }.${targetSystem} // { version = ver; };
+    ver = (builtins.fromJSON (builtins.readFile (inputs.self + "/flake.lock"))).nodes.mithril.original.ref or "unknown-ref";
+  in
+    {
+      x86_64-linux = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
+      x86_64-windows = pkgs.fetchurl {
+        name = "mithril-${ver}-windows-x64.tar.gz";
+        url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
+        hash = "sha256-OEKxmcfN9hDfVtasI1tZAYKj5F8vWNpQiO4KKiLgYWk=";
+      };
+      x86_64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
+      aarch64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
+    }.${
+      targetSystem
+    }
+    // {version = ver;};
 
-  dolos = blockfrostPlatformFlake.internal.${targetSystem}.dolos;
+  inherit (blockfrostPlatformFlake.internal.${targetSystem}) dolos;
 
   # Aligned with blockfrost-platform's nix/internal/unix.nix `dolos-configs`:
   dolos-configs = let
@@ -272,9 +300,7 @@ in rec {
     };
 
     mkConfig = network: let
-      topology = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/topology.json");
       byronGenesis = builtins.fromJSON (builtins.readFile "${cardano-node-configs}/${network}/byron-genesis.json");
-      peerAddr = let first = lib.head topology.bootstrapPeers; in "${first.address}:${toString first.port}";
       magic = toString byronGenesis.protocolConsts.protocolMagic;
     in
       pkgs.writeText "dolos.toml" (''
@@ -335,12 +361,12 @@ in rec {
     '';
 
   ui = rec {
-    nodejs = pkgs.nodejs;
+    inherit (pkgs) nodejs;
 
-    yarn = pkgs.yarn.override { inherit nodejs; };
+    yarn = pkgs.yarn.override {inherit nodejs;};
 
     yarn2nix = let
-      src = builtins.path { path = pkgs.path + "/pkgs/development/tools/yarn2nix-moretea"; };
+      src = builtins.path {path = pkgs.path + "/pkgs/development/tools/yarn2nix-moretea";};
     in
       import src {
         inherit pkgs nodejs yarn;
@@ -350,18 +376,19 @@ in rec {
     lockfiles = pkgs.lib.cleanSourceWith {
       src = uiSrc;
       name = "ui-lockfiles";
-      filter = name: type: let b = baseNameOf (toString name); in (b == "package.json" || b == "yarn.lock");
+      filter = name: _type: let b = baseNameOf (toString name); in b == "package.json" || b == "yarn.lock";
     };
 
-    favicons = pkgs.runCommand "favicons" {
-      buildInputs = with pkgs; [ imagemagick ];
-      original = builtins.path { path = uiSrc + "/favicon.svg"; };
-    } ''
-      mkdir -p $out
-      convert -background none -size 32x32 $original $out/favicon-32x32.png
-      convert -background none -size 16x16 $original $out/favicon-16x16.png
-      convert $out/favicon-*.png $out/favicon.ico
-    '';
+    favicons =
+      pkgs.runCommand "favicons" {
+        buildInputs = with pkgs; [imagemagick];
+        original = builtins.path {path = uiSrc + "/favicon.svg";};
+      } ''
+        mkdir -p $out
+        convert -background none -size 32x32 $original $out/favicon-32x32.png
+        convert -background none -size 16x16 $original $out/favicon-16x16.png
+        convert $out/favicon-*.png $out/favicon.ico
+      '';
 
     offlineCache = yarn2nix.importOfflineCache (yarn2nix.mkYarnNix {
       yarnLock = lockfiles + "/yarn.lock";
@@ -383,16 +410,16 @@ in rec {
 
       ${pkgs.lib.concatMapStringsSep "\n" (cacheDir: ''
 
-        # Node.js headers for building native `*.node` extensions with node-gyp:
-        # TODO: learn why installVersion=9 – where does it come from? see node-gyp
-        mkdir -p ${cacheDir}/node-gyp/${nodejs.version}
-        echo 9 > ${cacheDir}/node-gyp/${nodejs.version}/installVersion
-        ln -sfn ${nodejs}/include ${cacheDir}/node-gyp/${nodejs.version}
+          # Node.js headers for building native `*.node` extensions with node-gyp:
+          # TODO: learn why installVersion=9 – where does it come from? see node-gyp
+          mkdir -p ${cacheDir}/node-gyp/${nodejs.version}
+          echo 9 > ${cacheDir}/node-gyp/${nodejs.version}/installVersion
+          ln -sfn ${nodejs}/include ${cacheDir}/node-gyp/${nodejs.version}
 
-      '') [
-        "$HOME/.cache"          # Linux, Windows (cross-compiled)
-        "$HOME/Library/Caches"  # Darwin
-      ]}
+        '') [
+          "$HOME/.cache" # Linux, Windows (cross-compiled)
+          "$HOME/Library/Caches" # Darwin
+        ]}
 
       # These are sometimes useful:
       #
@@ -403,5 +430,4 @@ in rec {
       # export DEBUG='node-gyp'
     '';
   };
-
 }

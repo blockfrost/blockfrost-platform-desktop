@@ -12,14 +12,14 @@ const (
 )
 
 var (
-	ExecutablePath string
-	Username string
-	WorkDir string
-	LibexecDir string
-	ResourcesDir string
-	NetworkConfigDir string
+	ExecutablePath     string
+	Username           string
+	WorkDir            string
+	LibexecDir         string
+	ResourcesDir       string
+	NetworkConfigDir   string
 	CardanoServicesDir string
-	ExeSuffix string
+	ExeSuffix          string
 )
 
 func init() {
