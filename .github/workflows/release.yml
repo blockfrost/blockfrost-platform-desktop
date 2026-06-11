@@ -37,7 +37,6 @@ jobs:
 
           $nixdl  result-installer-x86_64-linux      "$ref"#internal.x86_64-linux.installer
           $nixdl  result-installer-x86_64-windows    "$ref"#internal.x86_64-windows.installer
-          $nixdl  result-installer-x86_64-darwin     "$ref"#internal.x86_64-darwin.installer
           $nixdl  result-installer-aarch64-darwin    "$ref"#internal.aarch64-darwin.installer
 
           find -L result-*
@@ -48,5 +47,4 @@ jobs:
           files: |
             result-installer-x86_64-linux/*.bin
             result-installer-x86_64-windows/*.exe
-            result-installer-x86_64-darwin/*.dmg
             result-installer-aarch64-darwin/*.dmg
