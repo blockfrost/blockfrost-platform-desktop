@@ -2,7 +2,7 @@
   inputs,
   targetSystem,
 }:
-assert builtins.elem targetSystem ["aarch64-darwin" "x86_64-darwin"]; let
+assert builtins.elem targetSystem ["aarch64-darwin"]; let
   pkgs = inputs.nixpkgs.legacyPackages.${targetSystem};
   inherit (pkgs) lib;
 in rec {
@@ -31,22 +31,7 @@ in rec {
       patches = (old.patches or []) ++ [./nodejs--no-verify-snapshot-checksum.patch];
     });
 
-    # XXX: By default on x86_64-darwin, MACOSX_DEPLOYMENT_TARGET=10.12, it has to be at least 10.15 for leveldb.
-    # XXX: On aarch64-darwin, MACOSX_DEPLOYMENT_TARGET=11.0. Let's force the same on x86_64.
-    # XXX: Don’t use pkgs11 too much on x86_64, or you’ll recompile the world.
-    pkgs11 =
-      if targetSystem == "aarch64-darwin"
-      then inputs.nixpkgs.legacyPackages.${targetSystem}
-      else
-        import (inputs.nixpkgs.legacyPackages.${targetSystem}.runCommandNoCC "nixpkgs-patched" {} ''
-          cp -r ${inputs.nixpkgs} $out
-          chmod -R +w $out
-          cd $out
-          patch -p1 -i ${./nixpkgs-x86-darwin-min-sdk-version.patch}
-        '') {
-          system = targetSystem;
-          config = {};
-        };
+    pkgs11 = inputs.nixpkgs.legacyPackages.${targetSystem};
 
     buildTimeSDK = pkgs11.darwin.apple_sdk_11_0;
 

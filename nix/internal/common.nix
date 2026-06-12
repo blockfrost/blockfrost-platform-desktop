@@ -14,7 +14,7 @@ in rec {
   prettyName = "Blockfrost Platform Desktop";
   codeName = "blockfrost-platform-desktop";
 
-  ourVersion = "0.0.3-rc.1";
+  ourVersion = "1.0.0-rc.1";
 
   blockfrostPlatformOnly = true;
 
@@ -99,7 +99,6 @@ in rec {
     {
       x86_64-linux = ogmiosProject.projectCross.musl64.hsPkgs.ogmios.components.exes.ogmios;
       x86_64-windows = ogmiosProject.projectCross.mingwW64.hsPkgs.ogmios.components.exes.ogmios;
-      x86_64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
       aarch64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
     }.${
       targetSystem
@@ -115,7 +114,6 @@ in rec {
     {
       x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-node;
       x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-node;
-      x86_64-darwin = cardanoNodeFlake.packages.x86_64-darwin.cardano-node;
       aarch64-darwin = cardanoNodeFlake.packages.aarch64-darwin.cardano-node;
     }.${
       targetSystem
@@ -125,7 +123,6 @@ in rec {
     {
       x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-submit-api;
       x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-submit-api;
-      x86_64-darwin = cardanoNodeFlake.packages.x86_64-darwin.cardano-submit-api;
       aarch64-darwin = cardanoNodeFlake.packages.aarch64-darwin.cardano-submit-api;
     }.${
       targetSystem
@@ -134,7 +131,6 @@ in rec {
   postgresPackage =
     {
       x86_64-linux = pkgs.postgresql_15_jit;
-      x86_64-darwin = pkgs.postgresql_15_jit;
       aarch64-darwin = pkgs.postgresql_15_jit;
       x86_64-windows = let
         version = "15.4-1";
@@ -280,7 +276,6 @@ in rec {
         url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
         hash = "sha256-OEKxmcfN9hDfVtasI1tZAYKj5F8vWNpQiO4KKiLgYWk=";
       };
-      x86_64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
       aarch64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
     }.${
       targetSystem
