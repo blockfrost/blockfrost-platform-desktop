@@ -14,7 +14,7 @@ in rec {
   prettyName = "Blockfrost Platform Desktop";
   codeName = "blockfrost-platform-desktop";
 
-  ourVersion = "1.0.0-rc.1";
+  ourVersion = "1.0.0-rc.2";
 
   blockfrostPlatformOnly = true;
 
