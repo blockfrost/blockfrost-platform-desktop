@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"net/url"
@@ -16,13 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sqweek/dialog"
-
 	"blockfrost.io/blockfrost-platform-desktop/appconfig"
 	"blockfrost.io/blockfrost-platform-desktop/constants"
-	"blockfrost.io/blockfrost-platform-desktop/mainthread"
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
-	"blockfrost.io/blockfrost-platform-desktop/ui"
 )
 
 func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- StatusAndUrl) ManagedChild {
@@ -76,6 +71,8 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 		const SCheckingDisk = "checking local disk info"
 		const SCertificates = "fetching & verifying cert info"
 		const SDownloadingUnpacking = "downloading & unpacking"
+		const SDownloadingDigests = "downloading & verifying digests"
+		const SVerifyingDB = "verifying DB"
 		const SDigest = "computing digest"
 		const SVerifyingSignature = "verifying signature"
 		const SGoodSignature = "good signature"
@@ -100,7 +97,9 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 
 		// A mini-monster, we’ll be able to get rid of it once Mithril provides more machine-readable output:
 		reProgress := regexp.MustCompile(
-			`^\[[0-9:]+\]\s+\[[#>-]+\]\s+([0-9]*\.[0-9]+)\s+([A-Za-z]*B)/([0-9]*\.[0-9]+)\s+([A-Za-z]*B)\s+\(([0-9]*\.[0-9]+)([A-Za-z]+)\)$`)
+			`^(?:[A-Za-z]+\s+)?\[[0-9:]+\]\s+\[[#>-]+\]\s+([0-9][0-9,]*(?:\.[0-9]+)?)\s+([A-Za-z]*B)/([0-9][0-9,]*(?:\.[0-9]+)?)\s+([A-Za-z]*B)\s+\(([0-9][0-9,]*(?:\.[0-9]+)?)([A-Za-z]+)\)$`)
+		reFilesProgress := regexp.MustCompile(
+			`^\[[0-9:]+\]\s+\[[#>-]+\]\s+Files:\s+([0-9][0-9,]*(?:\.[0-9]+)?)/([0-9][0-9,]*(?:\.[0-9]+)?)\s+\(([0-9][0-9,]*(?:\.[0-9]+)?)([A-Za-z]+)\)$`)
 
 		unitToBytes := func(unit string) int64 {
 			switch unit {
@@ -136,50 +135,30 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			}
 		}
 
+		// Mithril prints numbers with thousands separators, e.g. ‘26,550’:
+		parseFloat := func(s string) float64 {
+			n, _ := strconv.ParseFloat(strings.ReplaceAll(s, ",", ""), 64)
+			return n
+		}
+
 		return ManagedChild{
 			ServiceName: serviceName,
 			ExePath:     exePath,
 			Version:     constants.MithrilClientVersion,
 			Revision:    constants.MithrilClientRevision,
 			MkArgv: func() ([]string, error) {
-				stdout, stderr, pid, err := runCommandWithTimeout(
-					exePath,
-					[]string{"cardano-db", "snapshot", "list", "--json"},
-					extraEnv[shared.Network],
-					10*time.Second,
-					nil,
-				)
-				if err != nil {
-					fmt.Printf("%s[%d]: fetching snapshots failed: %v (stderr: %v) (stdout: %v)\n",
-						serviceName, pid, err, string(stdout), string(stderr))
-					mainthread.Schedule(func() {
-						ui.BringAppToForeground()
-						dialog.Message("Fetching Mithril snapshots failed: %v."+
-							"\n\nMore details in the log file.", err).
-							Title("Mithril error").Error()
-					})
-					return nil, err // restart in normal mode
+				snapshot := "latest"
+				snapshotOverrides := map[string]string{
+					"preview": appConfig.ForceMithrilSnapshot.Preview.Digest,
+					"preprod": appConfig.ForceMithrilSnapshot.Preprod.Digest,
+					"mainnet": appConfig.ForceMithrilSnapshot.Mainnet.Digest,
 				}
-
-				var snapshots []map[string]interface{}
-				err = json.Unmarshal(stdout, &snapshots)
-				if err != nil {
-					return nil, err
-				}
-				if len(snapshots) == 0 {
-					return nil, fmt.Errorf("empty snapshot array")
-				}
-				snapshotRaw, ok := snapshots[0]["digest"]
-				if !ok {
-					return nil, fmt.Errorf("missing ‘digest’ in first snapshot")
-				}
-				snapshot, ok := snapshotRaw.(string)
-				if !ok {
-					return nil, fmt.Errorf("‘digest’ in first snapshot is not a string")
+				if snapshotOverrides[shared.Network] != "" {
+					snapshot = snapshotOverrides[shared.Network]
 				}
 
 				downloadDir = snapshotsDir + sep + shared.Network + sep + snapshot
-				err = os.MkdirAll(downloadDir, 0o755)
+				err := os.MkdirAll(downloadDir, 0o755)
 				if err != nil {
 					return nil, err
 				}
@@ -195,7 +174,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				}
 
 				fmt.Printf("%s[%d]: will download snapshot %v to %v\n",
-					serviceName, pid, snapshot, downloadDir)
+					serviceName, os.Getpid(), snapshot, downloadDir)
 
 				return []string{
 					"cardano-db",
@@ -224,7 +203,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				// XXX: we use the early return pattern here, because you can’t have
 				// `if firstPredicate() && (a := mkA(); secondPredicate(a)) in Go for whatever reason
 
-				if strings.Contains(line, "1/5 - Checking local disk info") {
+				if strings.Contains(line, "Checking local disk info") {
 					currentStatus = SCheckingDisk
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -233,7 +212,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 					return
 				}
-				if strings.Contains(line, "2/5 - Fetching the certificate and verifying the certificate chain") {
+				if strings.Contains(line, "Fetching the certificate and verifying the certificate chain") {
 					currentStatus = SCertificates
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -241,7 +220,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 					return
 				}
-				if strings.Contains(line, "3/5 - Downloading and unpacking the cardano db") {
+				if strings.Contains(line, "Downloading and unpacking the cardano db") {
 					currentStatus = SDownloadingUnpacking
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -251,18 +230,18 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				}
 				if currentStatus == SDownloadingUnpacking {
 					if ms := reProgress.FindStringSubmatch(line); len(ms) > 0 {
-						numDone, _ := strconv.ParseFloat(ms[1], 64)
+						numDone := parseFloat(ms[1])
 						unitDone := ms[2]
 						done := numDone * float64(unitToBytes(unitDone))
 
-						numTotal, _ := strconv.ParseFloat(ms[3], 64)
+						numTotal := parseFloat(ms[3])
 						unitTotal := ms[4]
 						total := math.Round(numTotal * float64(unitToBytes(unitTotal)))
 						if total == 0.0 {
 							total = 1.0
 						}
 
-						numTimeRemaining, _ := strconv.ParseFloat(ms[5], 64)
+						numTimeRemaining := parseFloat(ms[5])
 						unitTimeRemaining := ms[6]
 						timeRemaining := numTimeRemaining * float64(unitToSeconds(unitTimeRemaining))
 
@@ -272,8 +251,42 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 						}
 						return // there would be no way to have `else if` here, hence early return
 					}
+					if ms := reFilesProgress.FindStringSubmatch(line); len(ms) > 0 {
+						done := parseFloat(ms[1])
+
+						total := parseFloat(ms[2])
+						if total == 0.0 {
+							total = 1.0
+						}
+
+						numTimeRemaining := parseFloat(ms[3])
+						unitTimeRemaining := ms[4]
+						timeRemaining := numTimeRemaining * float64(unitToSeconds(unitTimeRemaining))
+
+						statusCh <- StatusAndUrl{
+							Status: SDownloadingUnpacking, Progress: done / total,
+							TaskSize: -1, SecondsLeft: timeRemaining, OmitUrl: true,
+						}
+						return
+					}
 				}
-				if strings.Contains(line, "4/5 - Computing the cardano db message") {
+				if strings.Contains(line, "Downloading and verifying digests") {
+					currentStatus = SDownloadingDigests
+					statusCh <- StatusAndUrl{
+						Status: currentStatus, Progress: -1,
+						TaskSize: -1, SecondsLeft: -1, OmitUrl: true,
+					}
+					return
+				}
+				if strings.Contains(line, "Verifying the cardano database") {
+					currentStatus = SVerifyingDB
+					statusCh <- StatusAndUrl{
+						Status: currentStatus, Progress: -1,
+						TaskSize: -1, SecondsLeft: -1, OmitUrl: true,
+					}
+					return
+				}
+				if strings.Contains(line, "Computing the cardano db") {
 					currentStatus = SDigest
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -281,7 +294,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 					return
 				}
-				if strings.Contains(line, "5/5 - Verifying the cardano db signature") {
+				if strings.Contains(line, "Verifying the cardano db signature") {
 					currentStatus = SVerifyingSignature
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -295,8 +308,7 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				if runtime.GOOS == "windows" {
 					// Windows breaks long lines, when running in PTY (conpty), so let’s
 					// temporarily check for another string, which won’t get broken:
-					successMarker = "If you are using Cardano Docker image, " +
-						"you can restore a Cardano Node with"
+					successMarker = "Cardano Docker image"
 				}
 				if strings.Contains(line, successMarker) {
 					currentStatus = SGoodSignature
@@ -322,7 +334,8 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 
 				// Debounce the download progress bar, it’s way too frequent:
 				if currentStatus == SDownloadingUnpacking {
-					if ms := reProgress.FindStringSubmatch(line); len(ms) > 0 {
+					if ms := reProgress.FindStringSubmatch(line); len(ms) > 0 ||
+						reFilesProgress.FindStringSubmatch(line) != nil {
 						if time.Since(downloadProgressLastEmitted) >= 333*time.Millisecond {
 							downloadProgressLastEmitted = time.Now()
 						} else {
