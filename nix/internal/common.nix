@@ -299,6 +299,15 @@ in rec {
       magic = toString byronGenesis.protocolConsts.protocolMagic;
     in
       pkgs.writeText "dolos.toml" (''
+          [chain]
+          is_testnet = ${
+            if network != "mainnet"
+            then "true"
+            else "false"
+          }
+          magic = ${magic}
+          type = "cardano"
+
           [genesis]
           alonzo_path = "''${GENESIS_PATH_ALONZO}"
           byron_path = "''${GENESIS_PATH_BYRON}"
@@ -337,12 +346,6 @@ in rec {
           pull_batch_size = 100
 
           [upstream]
-        ''
-        + lib.optionalString (network != "mainnet") ''
-          is_testnet = true
-        ''
-        + ''
-          network_magic = ${magic}
           peer_address = "''${PEER_ADDRESS}"
         '');
   in
