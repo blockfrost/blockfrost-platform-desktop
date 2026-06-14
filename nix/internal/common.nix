@@ -265,7 +265,9 @@ in rec {
     mainnet = "https://aggregator.release-mainnet.api.mithril.network/aggregator";
   };
 
-  # FIXME: build from source (Linux, and Darwins are available in their flake.nix, but Windows not)
+  # FIXME: build from source. Since 2617.0, Mithril's flake only exposes
+  # `mithril-client-cli` for `x86_64-linux` (musl), so `aarch64-darwin`, like
+  # `x86_64-windows`, falls back to the prebuilt GitHub release tarball.
   mithril-bin = let
     ver = (builtins.fromJSON (builtins.readFile (inputs.self + "/flake.lock"))).nodes.mithril.original.ref or "unknown-ref";
   in
@@ -276,7 +278,20 @@ in rec {
         url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
         hash = "sha256-OEKxmcfN9hDfVtasI1tZAYKj5F8vWNpQiO4KKiLgYWk=";
       };
-      aarch64-darwin = inputs.mithril.packages.${targetSystem}.mithril-client-cli;
+      aarch64-darwin = let
+        tarball = pkgs.fetchurl {
+          name = "mithril-${ver}-macos-arm64.tar.gz";
+          url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-macos-arm64.tar.gz";
+          hash = "sha256-DZRUIR1EdKDR9tXr5YvITM4S6dJcvQ/Ltm053Iy7Atk=";
+        };
+      in
+        # The CLI binary is self-contained (only links system libs); the
+        # sibling `*.dylib`/`*.a`/`*.rlib` in the tarball are unused here.
+        pkgs.runCommand "mithril-client-${ver}" {meta.mainProgram = "mithril-client";} ''
+          mkdir -p $out/bin
+          tar -xzf ${tarball} -C $out/bin mithril-client
+          chmod +x $out/bin/mithril-client
+        '';
     }.${
       targetSystem
     }
