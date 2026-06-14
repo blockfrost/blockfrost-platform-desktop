@@ -5,25 +5,34 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/sqweek/dialog"
-
 	"blockfrost.io/blockfrost-platform-desktop/appconfig"
 	"blockfrost.io/blockfrost-platform-desktop/constants"
-	"blockfrost.io/blockfrost-platform-desktop/mainthread"
 	"blockfrost.io/blockfrost-platform-desktop/ourpaths"
-	"blockfrost.io/blockfrost-platform-desktop/ui"
 )
+
+// mithrilJSONEvent is one line of `mithril-client --json` output. Depending on
+// which fields are present, it’s either a step transition, a download-progress
+// update (labelled "Files" for immutables, or "Ancillary" for the ledger state),
+// or the final success result (which carries a non-empty `db_directory`).
+type mithrilJSONEvent struct {
+	StepNum         *int     `json:"step_num"`
+	Message         string   `json:"message"`
+	Label           string   `json:"label"`
+	FilesDownloaded *float64 `json:"files_downloaded"`
+	FilesTotal      *float64 `json:"files_total"`
+	BytesDownloaded *float64 `json:"bytes_downloaded"`
+	BytesTotal      *float64 `json:"bytes_total"`
+	SecondsLeft     *float64 `json:"seconds_left"`
+	DbDirectory     string   `json:"db_directory"`
+}
 
 func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- StatusAndUrl) ManagedChild {
 	return func(shared SharedState, statusCh chan<- StatusAndUrl) ManagedChild {
@@ -34,6 +43,11 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			"preprod": constants.MithrilAggregatorPreprod,
 			"mainnet": constants.MithrilAggregatorMainnet,
 		}
+
+		// Capture the real upstream aggregator for this network before any
+		// forced-snapshot proxy overwrites it below; we query it for the
+		// snapshot’s byte sizes (best-effort) to drive a GiB progress bar.
+		realAggregator := upstream[shared.Network]
 
 		if appConfig.ForceMithrilSnapshot.Preview.Digest != "" {
 			upstream["preview"] = fmt.Sprintf("http://127.0.0.1:%d/preview", shared.MithrilCachePort)
@@ -76,6 +90,8 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 		const SCheckingDisk = "checking local disk info"
 		const SCertificates = "fetching & verifying cert info"
 		const SDownloadingUnpacking = "downloading & unpacking"
+		const SDownloadingDigests = "downloading & verifying digests"
+		const SVerifyingDB = "verifying DB"
 		const SDigest = "computing digest"
 		const SVerifyingSignature = "verifying signature"
 		const SGoodSignature = "good signature"
@@ -86,6 +102,15 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 
 		// For log debouncing:
 		downloadProgressLastEmitted := time.Now()
+
+		// Snapshot byte sizes (uncompressed) fetched best-effort from the
+		// aggregator in MkArgv, plus the live per-stream download accumulators.
+		// When `dbTotalBytes > 0` we merge the parallel immutables ("Files") and
+		// ancillary ("Ancillary") streams into a single GiB progress bar;
+		// otherwise we fall back to file-count progress.
+		var dbTotalBytes, immBytes, ancBytes float64
+		var immDownloaded, ancDownloaded float64
+		var immSecondsLeft, ancSecondsLeft float64
 
 		explorerUrl := ""
 		for _, envVar := range extraEnv[shared.Network] {
@@ -98,41 +123,26 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			}
 		}
 
-		// A mini-monster, we’ll be able to get rid of it once Mithril provides more machine-readable output:
-		reProgress := regexp.MustCompile(
-			`^\[[0-9:]+\]\s+\[[#>-]+\]\s+([0-9]*\.[0-9]+)\s+([A-Za-z]*B)/([0-9]*\.[0-9]+)\s+([A-Za-z]*B)\s+\(([0-9]*\.[0-9]+)([A-Za-z]+)\)$`)
-
-		unitToBytes := func(unit string) int64 {
-			switch unit {
-			case "B":
-				return 1
-			case "KiB":
-				return 1024
-			case "MiB":
-				return 1024 * 1024
-			case "GiB":
-				return 1024 * 1024 * 1024
-			case "TiB":
-				return 1024 * 1024 * 1024 * 1024
-			case "PiB":
-				return 1024 * 1024 * 1024 * 1024 * 1024
-			default:
-				return -1 // signal that something’s off
+		// Dereferences an optional float from Mithril’s JSON, with a fallback:
+		derefF := func(p *float64, dflt float64) float64 {
+			if p == nil {
+				return dflt
 			}
+			return *p
 		}
 
-		unitToSeconds := func(unit string) int64 {
-			switch unit {
-			case "s":
-				return 1
-			case "m":
-				return 60
-			case "h":
-				return 60 * 60
-			case "d":
-				return 60 * 60 * 24
-			default:
-				return -1 // signal that something’s off
+		// Emits a combined GiB download-progress update, merging the parallel
+		// immutables + ancillary streams against the total uncompressed DB size.
+		// The ETA is the larger of the two remaining times (step 3 finishes when
+		// the slower stream does); -1 means “unknown”.
+		emitMithrilDownload := func() {
+			secondsLeft := immSecondsLeft
+			if ancSecondsLeft > secondsLeft {
+				secondsLeft = ancSecondsLeft
+			}
+			statusCh <- StatusAndUrl{
+				Status: currentStatus, Progress: (immDownloaded + ancDownloaded) / dbTotalBytes,
+				TaskSize: dbTotalBytes, SecondsLeft: secondsLeft, OmitUrl: true,
 			}
 		}
 
@@ -142,44 +152,37 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			Version:     constants.MithrilClientVersion,
 			Revision:    constants.MithrilClientRevision,
 			MkArgv: func() ([]string, error) {
-				stdout, stderr, pid, err := runCommandWithTimeout(
-					exePath,
-					[]string{"cardano-db", "snapshot", "list", "--json"},
-					extraEnv[shared.Network],
-					10*time.Second,
-					nil,
-				)
-				if err != nil {
-					fmt.Printf("%s[%d]: fetching snapshots failed: %v (stderr: %v) (stdout: %v)\n",
-						serviceName, pid, err, string(stdout), string(stderr))
-					mainthread.Schedule(func() {
-						ui.BringAppToForeground()
-						dialog.Message("Fetching Mithril snapshots failed: %v."+
-							"\n\nMore details in the log file.", err).
-							Title("Mithril error").Error()
-					})
-					return nil, err // restart in normal mode
+				snapshot := "latest"
+				snapshotOverrides := map[string]string{
+					"preview": appConfig.ForceMithrilSnapshot.Preview.Digest,
+					"preprod": appConfig.ForceMithrilSnapshot.Preprod.Digest,
+					"mainnet": appConfig.ForceMithrilSnapshot.Mainnet.Digest,
+				}
+				if snapshotOverrides[shared.Network] != "" {
+					snapshot = snapshotOverrides[shared.Network]
 				}
 
-				var snapshots []map[string]interface{}
-				err = json.Unmarshal(stdout, &snapshots)
-				if err != nil {
-					return nil, err
-				}
-				if len(snapshots) == 0 {
-					return nil, fmt.Errorf("empty snapshot array")
-				}
-				snapshotRaw, ok := snapshots[0]["digest"]
-				if !ok {
-					return nil, fmt.Errorf("missing ‘digest’ in first snapshot")
-				}
-				snapshot, ok := snapshotRaw.(string)
-				if !ok {
-					return nil, fmt.Errorf("‘digest’ in first snapshot is not a string")
+				// Reset per-session download accumulators, then best-effort fetch the
+				// snapshot’s uncompressed byte sizes so we can show a GiB progress bar.
+				// Only `latest` is served by the real aggregator; forced snapshots go
+				// through a local proxy that doesn’t expose these sizes, so we just
+				// fall back to file-count progress there.
+				dbTotalBytes, immBytes, ancBytes = 0, 0, 0
+				immDownloaded, ancDownloaded = 0, 0
+				immSecondsLeft, ancSecondsLeft = -1, -1
+				if snapshot == "latest" {
+					if total, ancillary, ok := fetchCardanoDbSizes(realAggregator); ok {
+						dbTotalBytes = total
+						ancBytes = ancillary
+						immBytes = total - ancillary
+						if immBytes < 0 {
+							immBytes = 0
+						}
+					}
 				}
 
 				downloadDir = snapshotsDir + sep + shared.Network + sep + snapshot
-				err = os.MkdirAll(downloadDir, 0o755)
+				err := os.MkdirAll(downloadDir, 0o755)
 				if err != nil {
 					return nil, err
 				}
@@ -195,9 +198,10 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				}
 
 				fmt.Printf("%s[%d]: will download snapshot %v to %v\n",
-					serviceName, pid, snapshot, downloadDir)
+					serviceName, os.Getpid(), snapshot, downloadDir)
 
 				return []string{
+					"--json", // machine-readable progress & step events (on stderr)
 					"cardano-db",
 					"download",
 					snapshot,
@@ -209,8 +213,10 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			MkExtraEnv: func() []string {
 				return extraEnv[shared.Network]
 			},
-			PostStart:   func() error { return nil },
-			AllocatePTY: true,
+			PostStart: func() error { return nil },
+			// With `--json`, Mithril streams machine-readable progress to stderr
+			// even when not attached to a TTY, so we no longer need a PTY here:
+			AllocatePTY: false,
 			StatusCh:    statusCh,
 			HealthProbe: func(prev HealthStatus) HealthStatus {
 				return HealthStatus{
@@ -221,84 +227,20 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 				}
 			},
 			LogMonitor: func(line string) {
-				// XXX: we use the early return pattern here, because you can’t have
-				// `if firstPredicate() && (a := mkA(); secondPredicate(a)) in Go for whatever reason
-
-				if strings.Contains(line, "1/5 - Checking local disk info") {
-					currentStatus = SCheckingDisk
-					statusCh <- StatusAndUrl{
-						Status: currentStatus, Progress: -1,
-						TaskSize: -1, SecondsLeft: -1,
-						Url: explorerUrl, OmitUrl: false,
-					}
+				// With `--json`, Mithril emits one JSON object per line. Step &
+				// progress events go to stderr (hence the `[stderr] ` prefix our
+				// pipe reader adds), the final success result goes to stdout.
+				line = strings.TrimPrefix(line, "[stderr] ")
+				if !strings.HasPrefix(line, "{") {
 					return
 				}
-				if strings.Contains(line, "2/5 - Fetching the certificate and verifying the certificate chain") {
-					currentStatus = SCertificates
-					statusCh <- StatusAndUrl{
-						Status: currentStatus, Progress: -1,
-						TaskSize: -1, SecondsLeft: -1, OmitUrl: true,
-					}
-					return
-				}
-				if strings.Contains(line, "3/5 - Downloading and unpacking the cardano db") {
-					currentStatus = SDownloadingUnpacking
-					statusCh <- StatusAndUrl{
-						Status: currentStatus, Progress: -1,
-						TaskSize: -1, SecondsLeft: -1, OmitUrl: true,
-					}
-					return
-				}
-				if currentStatus == SDownloadingUnpacking {
-					if ms := reProgress.FindStringSubmatch(line); len(ms) > 0 {
-						numDone, _ := strconv.ParseFloat(ms[1], 64)
-						unitDone := ms[2]
-						done := numDone * float64(unitToBytes(unitDone))
-
-						numTotal, _ := strconv.ParseFloat(ms[3], 64)
-						unitTotal := ms[4]
-						total := math.Round(numTotal * float64(unitToBytes(unitTotal)))
-						if total == 0.0 {
-							total = 1.0
-						}
-
-						numTimeRemaining, _ := strconv.ParseFloat(ms[5], 64)
-						unitTimeRemaining := ms[6]
-						timeRemaining := numTimeRemaining * float64(unitToSeconds(unitTimeRemaining))
-
-						statusCh <- StatusAndUrl{
-							Status: SDownloadingUnpacking, Progress: done / total,
-							TaskSize: total, SecondsLeft: timeRemaining, OmitUrl: true,
-						}
-						return // there would be no way to have `else if` here, hence early return
-					}
-				}
-				if strings.Contains(line, "4/5 - Computing the cardano db message") {
-					currentStatus = SDigest
-					statusCh <- StatusAndUrl{
-						Status: currentStatus, Progress: -1,
-						TaskSize: -1, SecondsLeft: -1, OmitUrl: true,
-					}
-					return
-				}
-				if strings.Contains(line, "5/5 - Verifying the cardano db signature") {
-					currentStatus = SVerifyingSignature
-					statusCh <- StatusAndUrl{
-						Status: currentStatus, Progress: -1,
-						TaskSize: -1, SecondsLeft: -1, OmitUrl: true,
-					}
+				var ev mithrilJSONEvent
+				if json.Unmarshal([]byte(line), &ev) != nil {
 					return
 				}
 
-				successMarker := "Files in the directory '" + unpackDir +
-					"' can be used to run a Cardano node"
-				if runtime.GOOS == "windows" {
-					// Windows breaks long lines, when running in PTY (conpty), so let’s
-					// temporarily check for another string, which won’t get broken:
-					successMarker = "If you are using Cardano Docker image, " +
-						"you can restore a Cardano Node with"
-				}
-				if strings.Contains(line, successMarker) {
+				// The final result, printed only on success, carries `db_directory`:
+				if ev.DbDirectory != "" {
 					currentStatus = SGoodSignature
 					statusCh <- StatusAndUrl{
 						Status: currentStatus, Progress: -1,
@@ -306,28 +248,88 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 					return
 				}
-			},
-			LogModifier: func(line string) string {
-				// Remove the wigglers (⠙, ⠒, etc.):
-				brailleDotsLow := rune(0x2800)
-				brailleDotsHi := rune(0x28ff)
-				var result strings.Builder
-				for _, char := range line {
-					if char < brailleDotsLow || char > brailleDotsHi {
-						result.WriteRune(char)
+
+				// Step transitions (1..7), in the order Mithril runs them:
+				if ev.StepNum != nil {
+					switch *ev.StepNum {
+					case 1:
+						currentStatus = SCheckingDisk
+					case 2:
+						currentStatus = SCertificates
+					case 3:
+						currentStatus = SDownloadingUnpacking
+					case 4:
+						currentStatus = SDownloadingDigests
+					case 5:
+						currentStatus = SVerifyingDB
+					case 6:
+						currentStatus = SDigest
+					case 7:
+						currentStatus = SVerifyingSignature
+					default:
+						return
+					}
+					statusCh <- StatusAndUrl{
+						Status: currentStatus, Progress: -1,
+						TaskSize: -1, SecondsLeft: -1,
+						// only attach the explorer URL on the very first step:
+						Url: explorerUrl, OmitUrl: *ev.StepNum != 1,
+					}
+					return
+				}
+
+				// Download progress: immutables are reported by file count (Mithril
+				// gives no byte totals there), the ancillary (ledger state) by bytes:
+				switch ev.Label {
+				case "Files":
+					total := derefF(ev.FilesTotal, 1)
+					if total == 0 {
+						total = 1
+					}
+					frac := derefF(ev.FilesDownloaded, 0) / total
+					if dbTotalBytes > 0 {
+						// Combined GiB bar: map the immutables file-fraction onto
+						// their share of the uncompressed DB size.
+						immDownloaded = frac * immBytes
+						immSecondsLeft = derefF(ev.SecondsLeft, -1)
+						emitMithrilDownload()
+					} else {
+						// Fallback: aggregator sizes unavailable, report by file count.
+						statusCh <- StatusAndUrl{
+							Status: currentStatus, Progress: frac,
+							TaskSize: -1, SecondsLeft: derefF(ev.SecondsLeft, -1), OmitUrl: true,
+						}
+					}
+				case "Ancillary":
+					total := derefF(ev.BytesTotal, 1)
+					if total == 0 {
+						total = 1
+					}
+					frac := derefF(ev.BytesDownloaded, 0) / total
+					if dbTotalBytes > 0 {
+						// Combined GiB bar: the reported bytes are compressed, so use
+						// the fraction against the uncompressed ancillary size.
+						ancDownloaded = frac * ancBytes
+						ancSecondsLeft = derefF(ev.SecondsLeft, -1)
+						emitMithrilDownload()
+					} else {
+						// Fallback: report the ancillary’s own (compressed) byte total.
+						statusCh <- StatusAndUrl{
+							Status: currentStatus, Progress: frac,
+							TaskSize: total, SecondsLeft: derefF(ev.SecondsLeft, -1), OmitUrl: true,
+						}
 					}
 				}
-				line = result.String()
-				line = strings.TrimSpace(line)
-
-				// Debounce the download progress bar, it’s way too frequent:
-				if currentStatus == SDownloadingUnpacking {
-					if ms := reProgress.FindStringSubmatch(line); len(ms) > 0 {
-						if time.Since(downloadProgressLastEmitted) >= 333*time.Millisecond {
-							downloadProgressLastEmitted = time.Now()
-						} else {
-							line = ""
-						}
+			},
+			LogModifier: func(line string) string {
+				// Download-progress events arrive several times per second; debounce
+				// them so we don’t spam the log or (on Windows) the tray UI. They’re
+				// the only events carrying a `seconds_elapsed` field:
+				if strings.Contains(line, "seconds_elapsed") {
+					if time.Since(downloadProgressLastEmitted) >= 333*time.Millisecond {
+						downloadProgressLastEmitted = time.Now()
+					} else {
+						return ""
 					}
 				}
 
@@ -390,6 +392,80 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 			},
 		}
 	}
+}
+
+// cardanoDbSnapshotListItem and cardanoDbSnapshotDetail model the subset of the
+// Mithril aggregator’s `/artifact/cardano-database[/{hash}]` responses we need.
+type cardanoDbSnapshotListItem struct {
+	Hash   string `json:"hash"`
+	Beacon struct {
+		ImmutableFileNumber int `json:"immutable_file_number"`
+	} `json:"beacon"`
+}
+
+type cardanoDbSnapshotDetail struct {
+	TotalDbSizeUncompressed float64 `json:"total_db_size_uncompressed"`
+	Ancillary               struct {
+		SizeUncompressed float64 `json:"size_uncompressed"`
+	} `json:"ancillary"`
+}
+
+// fetchCardanoDbSizes queries the aggregator for the latest Cardano DB snapshot
+// and returns its total and ancillary *uncompressed* sizes, in bytes. It’s
+// best-effort: any error returns ok=false, and callers then fall back to
+// file-count progress. "Latest" is chosen by the highest immutable file number,
+// which is robust against the list’s ordering.
+func fetchCardanoDbSizes(aggregatorEndpoint string) (total float64, ancillary float64, ok bool) {
+	if aggregatorEndpoint == "" {
+		return 0, 0, false
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	listURL := strings.TrimRight(aggregatorEndpoint, "/") + "/artifact/cardano-database"
+	resp, err := client.Get(listURL)
+	if err != nil {
+		return 0, 0, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, 0, false
+	}
+
+	var list []cardanoDbSnapshotListItem
+	if json.NewDecoder(resp.Body).Decode(&list) != nil || len(list) == 0 {
+		return 0, 0, false
+	}
+
+	latest := list[0]
+	for _, item := range list[1:] {
+		if item.Beacon.ImmutableFileNumber > latest.Beacon.ImmutableFileNumber {
+			latest = item
+		}
+	}
+	if latest.Hash == "" {
+		return 0, 0, false
+	}
+
+	detailURL := listURL + "/" + latest.Hash
+	resp2, err := client.Get(detailURL)
+	if err != nil {
+		return 0, 0, false
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		return 0, 0, false
+	}
+
+	var detail cardanoDbSnapshotDetail
+	if json.NewDecoder(resp2.Body).Decode(&detail) != nil {
+		return 0, 0, false
+	}
+	if detail.TotalDbSizeUncompressed <= 0 {
+		return 0, 0, false
+	}
+
+	return detail.TotalDbSizeUncompressed, detail.Ancillary.SizeUncompressed, true
 }
 
 func runCommandWithTimeout(
