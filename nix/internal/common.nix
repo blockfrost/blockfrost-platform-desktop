@@ -276,7 +276,7 @@ in rec {
       x86_64-windows = pkgs.fetchurl {
         name = "mithril-${ver}-windows-x64.tar.gz";
         url = "https://github.com/input-output-hk/mithril/releases/download/${ver}/mithril-${ver}-windows-x64.tar.gz";
-        hash = "sha256-OEKxmcfN9hDfVtasI1tZAYKj5F8vWNpQiO4KKiLgYWk=";
+        hash = "sha256-3drSR41zK4KLv4q3SxDhAq8IFydvA8NIZF93qmsqoFM=";
       };
       aarch64-darwin = let
         tarball = pkgs.fetchurl {
