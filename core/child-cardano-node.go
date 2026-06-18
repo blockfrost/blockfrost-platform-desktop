@@ -20,35 +20,26 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 	sep := string(filepath.Separator)
 
 	hostname, _ := os.Hostname()
-	trimmedHostname := hostname
-	if len(trimmedHostname) > 8 {
-		trimmedHostname = trimmedHostname[:8]
-	}
-	droppedHostname := fmt.Sprintf("[%s:cardano.node.", trimmedHostname)
 
-	removeTimestamp := func(line string, when time.Time) string {
-		needle := when.Format("[2006-01-02 15:04:05.")
-		index := strings.Index(line, needle)
-		if index != -1 {
-			end := index + len(needle) + 8
-			if end > len(line) {
-				end = len(line)
-			}
-			return line[:index] + line[end:]
-		}
-		return line
-	}
+	// cardano-node’s “new tracing” HumanFormatColoured (u?) prints each line (in
+	// blue) as `[<timestamp>][<hostname>:<namespace>](<severity>,<threadId>)
+	// <message>`. When saving the log we drop two noisy bits below:
+	reCardanoTimestamp := regexp.MustCompile(
+		`^((?:\x1b\[[0-9;]*m)*)\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+Z\]`)
 
+	// XXX: cardano-node’s “new tracing” system formats the log metadata as
+	// `[host:Some.Namespace.Path](Severity,ThreadId)`, e.g.
+	// `…:ChainDB.ReplayBlock.LedgerReplay](Info,18) Replayed block: …`.
 	reValidatingChunk := regexp.MustCompile(
-		`^.*ChainDB:Info.*Validating chunk no. \d+ out of \d+\. Progress: (\d*\.\d+)%$`)
+		`^.*ChainDB.*\]\(Info,\d+\).*Validating chunk no\. \d+ out of \d+\. Progress: (\d*\.\d+)%$`)
 	reReplayingLedger := regexp.MustCompile(
-		`^.*ChainDB:Info.*Replayed block: slot \d+ out of \d+\. Progress: (\d*\.\d+)%$`)
+		`^.*ChainDB.*\]\(Info,\d+\).*Replayed block: slot \d+ out of \d+\. Progress: (\d*\.\d+)%$`)
 	rePushingLedger := regexp.MustCompile(
-		`^.*ChainDB:Info.*Pushing ledger state for block [0-9a-f]+ at slot \d+. Progress: (\d*\.\d+)%$`)
+		`^.*ChainDB.*\]\(Info,\d+\).*Pushing ledger state for block [0-9a-f]+ at slot \d+\. Progress: (\d*\.\d+)%$`)
 	reSyncingInit := regexp.MustCompile(
-		`^.*ChainDB:Info.*Opened db with immutable tip at [0-9a-f]+ at slot \d+ and tip [0-9a-f]+ at slot (\d+)$`)
+		`^.*ChainDB.*\]\(Info,\d+\).*Opened db with immutable tip at [0-9a-f]+ at slot \d+ and tip [0-9a-f]+ at slot (\d+)$`)
 	reSyncing := regexp.MustCompile(
-		`^.*ChainDB:Notice.*Chain extended, new tip: [0-9a-f]+ at slot (\d+)$`)
+		`^.*ChainDB.*\]\(Notice,\d+\).*Chain extended, new tip: [0-9a-f]+ at slot (\d+)$`)
 
 	return ManagedChild{
 		ServiceName: "cardano-node",
@@ -94,6 +85,12 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 			}
 		},
 		LogMonitor: func(line string) {
+			// On non-Windows, the line still carries cardano-node’s ANSI color
+			// codes (LogModifier only strips them on Windows). A trailing reset
+			// sequence would defeat the `$`-anchored regexes below, so strip
+			// them here too (idempotent and safe on every platform).
+			line = stripansi.Strip(line)
+
 			reportSyncing := func(slotNum string) {
 				pr, _ := strconv.ParseFloat(slotNum, 64) // fallback
 				if *shared.SyncProgress >= 0 {
@@ -154,10 +151,12 @@ func childCardanoNode(shared SharedState, statusCh chan<- StatusAndUrl) ManagedC
 			}
 		},
 		LogModifier: func(line string) string {
-			now := time.Now().UTC()
-			line = removeTimestamp(line, now)
-			line = removeTimestamp(line, now.Add(-1*time.Second))
-			line = strings.ReplaceAll(line, droppedHostname, "[")
+			// Strip cardano-node’s own leading timestamp, keeping the color
+			// escape (group 1) so the rest of the line stays colored.
+			line = reCardanoTimestamp.ReplaceAllString(line, "${1}")
+			if hostname != "" {
+				line = strings.Replace(line, hostname+":", "", 1)
+			}
 			if runtime.GOOS == "windows" {
 				// garbled output on cmd.exe instead:
 				line = stripansi.Strip(line)
