@@ -36,11 +36,11 @@
         "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
-        "lastModified": 1782212791,
-        "narHash": "sha256-V7g9QMqu2JEyz/j/S2qQDCzlnlhlONPCq6B7uq+8L8s=",
+        "lastModified": 1782220777,
+        "narHash": "sha256-xbcLA1kxvhBgbti6PRucCM0fo2ENcGbvyjMTTbBVocE=",
         "owner": "blockfrost",
         "repo": "blockfrost-platform",
-        "rev": "768e8e0ff8565bfa067a3bfb3b736fd2e6743c28",
+        "rev": "19cdcd1a0cf92effa414195c19a46e47f3ff7d70",
         "type": "github"
       },
       "original": {
@@ -188,16 +188,16 @@
     "dolos": {
       "flake": false,
       "locked": {
-        "lastModified": 1781915104,
-        "narHash": "sha256-IOD3rpyt0HNxapVxPn+xGwF3hMlQCLpBDbX+FzZtjmw=",
+        "lastModified": 1782215327,
+        "narHash": "sha256-tKhGe0eIiBR0H7fZS3/yOnEBxoAGJFVKxqIiNac9V3U=",
         "owner": "txpipe",
         "repo": "dolos",
-        "rev": "534158e2b7c7275fa1815816f4055842bca5abb6",
+        "rev": "ea7960a1c2e56c523fec7c4bab75f390ee443514",
         "type": "github"
       },
       "original": {
         "owner": "txpipe",
-        "ref": "v1.3.1",
+        "ref": "v1.3.2",
         "repo": "dolos",
         "type": "github"
       }
