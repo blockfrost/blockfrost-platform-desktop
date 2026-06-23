@@ -24,7 +24,7 @@
       flake = false; # we patch it & to prevent lockfile explosion
     };
     # FIXME: update to `main` when this is merged:
-    blockfrost-platform.url = "github:blockfrost/blockfrost-platform/pull/586/head";
+    blockfrost-platform.url = "github:blockfrost/blockfrost-platform/pull/594/head";
     ogmios = {
       url = "https://github.com/CardanoSolutions/ogmios.git";
       ref = "refs/tags/v6.11.2";
