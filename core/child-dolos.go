@@ -20,7 +20,8 @@ import (
 type DolosPreRunState struct {
 	DolosWorkDir             string
 	ChainDir                 string
-	NeedsBootstrap           bool
+	MarkerPath               string
+	IsFreshBootstrap         bool
 	HasChainDir              bool
 	BootstrappingFromMithril bool
 }
@@ -31,18 +32,35 @@ func dolosPreRunState(shared SharedState) DolosPreRunState {
 	dolosWorkDir := ourpaths.WorkDir + sep + shared.Network + sep + "dolos"
 	chainDir := ourpaths.WorkDir + sep + shared.Network + sep + "chain"
 
+	// A marker file that exists only while a Mithril-based Dolos bootstrap is in
+	// progress. We create it before starting `dolos bootstrap mithril`, and only
+	// remove it once that finishes cleanly (exit 0). So if it’s still here on a
+	// later launch, the previous bootstrap was interrupted (app quit / crash) and
+	// we should resume it (`--continue`) rather than fall back to a very slow
+	// daemon-mode catch-up from a real `cardano-node`.
+	markerPath := ourpaths.DolosBootstrapMarkerPath(shared.Network)
+
+	// No Dolos data dir yet → this is a fresh bootstrap, not a resume of an
+	// interrupted one (which would have left partial data behind).
 	_, err := os.Stat(dolosWorkDir)
-	needsBootstrap := err != nil
+	isFreshBootstrap := err != nil
 
 	_, err = os.Stat(chainDir)
 	hasChainDir := err == nil
 
-	bootstrappingFromMithril := needsBootstrap && hasChainDir
+	_, err = os.Stat(markerPath)
+	mithrilBootstrapPreviouslyInterrupted := err == nil
+
+	// Bootstrap from the local `cardano-node` chain directory (probably a
+	// Mithril snapshot) when there’s no Dolos data yet, or when a prior such
+	// bootstrap was interrupted and must be resumed.
+	bootstrappingFromMithril := hasChainDir && (isFreshBootstrap || mithrilBootstrapPreviouslyInterrupted)
 
 	return DolosPreRunState{
 		DolosWorkDir:             dolosWorkDir,
 		ChainDir:                 chainDir,
-		NeedsBootstrap:           needsBootstrap,
+		MarkerPath:               markerPath,
+		IsFreshBootstrap:         isFreshBootstrap,
 		HasChainDir:              hasChainDir,
 		BootstrappingFromMithril: bootstrappingFromMithril,
 	}
@@ -106,11 +124,15 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild {
 		// For log debouncing:
 		restoreProgressLastEmitted := time.Now()
 
+		// We use it in `PostStop` to see if a Mithril bootstrap got interrupted:
+		bootstrapExitCode := -1
+
 		return ManagedChild{
 			ServiceName: serviceName,
 			ExePath:     exePath,
 			Version:     constants.DolosVersion,
 			Revision:    constants.DolosRevision,
+			ExitCode:    &bootstrapExitCode,
 			MkArgv: func() ([]string, error) {
 				*shared.DolosPort = getFreeTCPPort()
 				templatePath := ourpaths.ResourcesDir + sep + "dolos-config" + sep + shared.Network + sep + "dolos.toml"
@@ -129,7 +151,7 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild {
 				}
 				tempConfigPath = tmp
 
-				if prs.NeedsBootstrap {
+				if prs.BootstrappingFromMithril || prs.IsFreshBootstrap {
 					statusCh <- StatusAndUrl{
 						Status:      "bootstrapping",
 						Progress:    -1,
@@ -138,35 +160,48 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild {
 						Url:         "",
 						OmitUrl:     false,
 					}
-
-					if prs.BootstrappingFromMithril {
-						return []string{
-							"--config", tempConfigPath,
-							"bootstrap", "mithril",
-							"--download-dir", prs.ChainDir,
-							"--skip-download",
-							"--retain-snapshot",
-							"--skip-validation",
-						}, nil
-						// After this long bootstrapping ends, everything will be restarted in `daemon` mode.
-					} else {
-						// But this setup returns immediately:
-						fmt.Printf("%s[%d]: running `dolos bootstrap relay`\n", serviceName, -1)
-						stdout, stderr, pid, err := runCommandWithTimeout(
-							exePath,
-							[]string{"--config", tempConfigPath, "bootstrap", "relay"},
-							[]string{},
-							60*time.Second,
-							nil,
-						)
-						if err != nil {
-							fmt.Printf("%s[%d]: failed: %v (stderr: %v) (stdout: %v)\n",
-								serviceName, pid, err, string(stdout), string(stderr))
-							return nil, err
-						}
-					}
 				}
 
+				if prs.BootstrappingFromMithril {
+					// Record that a Mithril-based bootstrap is underway. If we get
+					// interrupted (app quit / crash) before it finishes cleanly, this
+					// marker survives and makes the next launch resume it (see below)
+					// instead of falling back to a very slow daemon-mode catch-up.
+					if err := os.WriteFile(prs.MarkerPath,
+						[]byte("a `dolos bootstrap mithril` is in progress; "+
+							"if this file is still here, it was interrupted\n"),
+						0o644); err != nil {
+						fmt.Printf("%s[%d]: warning: could not write bootstrap marker %q: %v\n",
+							serviceName, -1, prs.MarkerPath, err)
+					}
+
+					argv := []string{
+						"--config", tempConfigPath,
+						"bootstrap", "mithril",
+						"--download-dir", prs.ChainDir,
+						"--skip-download",
+						"--retain-snapshot",
+						"--skip-validation",
+					}
+
+					// If Dolos data already exists, a previous bootstrap was interrupted,
+					// so resume it with `--continue` (without it, Dolos refuses to run on
+					// existing data). NB: resuming from a non-recoverable interruption
+					// point can still fail (a Dolos bug being fixed upstream,
+					// txpipe/dolos#1016); the user’s fallback is to re-trigger a full
+					// Mithril resync, which wipes this data and clears the marker.
+					if !prs.IsFreshBootstrap {
+						fmt.Printf("%s[%d]: resuming an interrupted Mithril bootstrap with `--continue`\n",
+							serviceName, -1)
+						argv = append(argv, "--continue")
+					}
+
+					return argv, nil
+					// After this long bootstrapping ends, everything will be restarted in `daemon` mode.
+				}
+
+				// Otherwise, just run the daemon which continues to sync via
+				// chain-sync off the local `cardano-node`).
 				return []string{
 					"--config", tempConfigPath,
 					"daemon",
@@ -294,6 +329,19 @@ func childDolos() func(SharedState, chan<- StatusAndUrl) ManagedChild {
 			PostStop: func() error {
 				if tempConfigPath != "" {
 					_ = os.Remove(tempConfigPath)
+				}
+				// A Mithril bootstrap that exited cleanly (0) is complete, so drop the
+				// marker and let the next launch go straight to daemon mode. Any other
+				// exit (non-zero, or killed → -1) means we were interrupted, so we keep
+				// the marker and resume with `--continue` on the next launch.
+				if prs.BootstrappingFromMithril && bootstrapExitCode == 0 {
+					if err := os.Remove(prs.MarkerPath); err != nil && !os.IsNotExist(err) {
+						fmt.Printf("%s[%d]: warning: could not remove bootstrap marker %q: %v\n",
+							serviceName, -1, prs.MarkerPath, err)
+					} else {
+						fmt.Printf("%s[%d]: Mithril bootstrap finished cleanly; cleared the resume marker\n",
+							serviceName, -1)
+					}
 				}
 				return nil
 			},

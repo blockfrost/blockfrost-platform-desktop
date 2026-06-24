@@ -48,6 +48,9 @@
         name = "staticcheck";
         package = pkgs.go-tools;
       }
+      {package = lib.hiPrio internal.common.dolos;}
+      {package = internal.mithril-client;}
+      {package = internal.blockfrost-platform;}
     ];
 
     language.c.compiler = pkgs.stdenv.cc;

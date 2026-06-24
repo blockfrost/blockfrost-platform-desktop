@@ -50,6 +50,7 @@ func childProcessPTYWindows(
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
 	openFileLimit int,
+	exitCode *int,
 ) {
 	panic("childProcessPTYWindows is only supported on Windows")
 }

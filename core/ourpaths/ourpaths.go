@@ -71,3 +71,8 @@ func init() {
 		ExeSuffix = ".exe"
 	}
 }
+
+func DolosBootstrapMarkerPath(network string) string {
+	sep := string(filepath.Separator)
+	return WorkDir + sep + network + sep + "dolos-bootstrap-incomplete"
+}
