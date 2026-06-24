@@ -382,6 +382,14 @@ func childMithril(appConfig appconfig.AppConfig) func(SharedState, chan<- Status
 					}
 				}
 
+				// We just wiped the Dolos data, so any leftover "bootstrap interrupted"
+				// marker is stale: drop it so the fresh bootstrap from this new snapshot
+				// doesn’t get treated as a resume (see child-dolos.go).
+				dolosBootstrapMarker := ourpaths.DolosBootstrapMarkerPath(shared.Network)
+				if err := os.Remove(dolosBootstrapMarker); err != nil && !os.IsNotExist(err) {
+					return err
+				}
+
 				currentStatus = SFinished
 				statusCh <- StatusAndUrl{
 					Status: currentStatus, Progress: -1,

@@ -109,7 +109,11 @@ func childProcessPTYWindows(
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
 	openFileLimit int,
+	exitCode *int, // if non-nil, set to the process’s exit code (-1 if unknown)
 ) {
+	if exitCode != nil {
+		*exitCode = -1
+	}
 	defer close(outputLines)
 
 	if terminateGracefullyByInheritedFd3 {
@@ -151,9 +155,13 @@ func childProcessPTYWindows(
 
 	// XXX: cpty handles aren’t closed (they’re pipes) automatically when the command exits, so let’s do this:
 	go func() {
-		_, err := cpty.Wait(context.Background())
+		code, err := cpty.Wait(context.Background())
 		if err != nil {
 			outputLines <- fmt.Sprintf("fatal: error during cpty.Wait(): %v", err)
+		} else if exitCode != nil {
+			// Record the exit code before closing the cpty (which makes the
+			// reader goroutine signal waitDone → outputLines closes → PostStop):
+			*exitCode = int(code)
 		}
 		cpty.Close()
 	}()

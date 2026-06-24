@@ -39,6 +39,11 @@ type ManagedChild struct {
 	OpenFileLimit                     int                 // if > 0, wrap child in a shell that sets RLIMIT_NOFILE to this value
 	ForceKillAfter                    time.Duration       // graceful exit timeout, after which we SIGKILL the child
 	PostStop                          func() error
+	// ExitCode, if non-nil, is set to the child process’s exit code (or -1 if
+	// it was killed / the code is unknown) right before the process’s output
+	// channel is closed, i.e. before PostStop runs. This lets a child tell a
+	// clean exit (0) apart from a crash or forced termination.
+	ExitCode *int
 }
 
 type StatusAndUrl struct {
@@ -311,7 +316,8 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 					child.LogModifier, outputLines, terminateCh, &childPid,
 					child.TerminateGracefullyByInheritedFd3,
 					child.ForceKillAfter,
-					child.OpenFileLimit)
+					child.OpenFileLimit,
+					child.ExitCode)
 				defer func() {
 					if !childDidExit {
 						child.StatusCh <- StatusAndUrl{
@@ -436,7 +442,11 @@ func childProcess(
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
 	openFileLimit int,
+	exitCode *int, // if non-nil, set to the process’s exit code (-1 if unknown)
 ) {
+	if exitCode != nil {
+		*exitCode = -1
+	}
 	defer close(outputLines)
 
 	var terminationPipeReader *os.File
@@ -522,6 +532,9 @@ func childProcess(
 
 	go func() {
 		cmd.Wait()
+		if exitCode != nil && cmd.ProcessState != nil {
+			*exitCode = cmd.ProcessState.ExitCode()
+		}
 		wgOuts.Wait()
 		waitDone <- struct{}{}
 	}()
@@ -587,7 +600,11 @@ func childProcessPTY(
 	terminateGracefullyByInheritedFd3 bool,
 	gracefulExitTimeout time.Duration,
 	openFileLimit int,
+	exitCode *int, // if non-nil, set to the process’s exit code (-1 if unknown)
 ) {
+	if exitCode != nil {
+		*exitCode = -1
+	}
 	defer close(outputLines)
 
 	if terminateGracefullyByInheritedFd3 {
@@ -617,7 +634,17 @@ func childProcessPTY(
 		return
 	}
 	defer ptyFile.Close()
-	defer cmd.Wait()
+
+	// Reap the child and record its exit code (so PostStop can tell a clean exit
+	// from a crash). Deferred so it runs even if something below panics, and—being
+	// registered after `defer close(outputLines)`—it runs before that close, i.e.
+	// the code is set before PostStop sees the output channel end.
+	defer func() {
+		_ = cmd.Wait()
+		if exitCode != nil && cmd.ProcessState != nil {
+			*exitCode = cmd.ProcessState.ExitCode()
+		}
+	}()
 
 	waitDone := make(chan struct{})
 
