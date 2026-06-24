@@ -36,16 +36,15 @@
         "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
-        "lastModified": 1782220777,
+        "lastModified": 1782291208,
         "narHash": "sha256-xbcLA1kxvhBgbti6PRucCM0fo2ENcGbvyjMTTbBVocE=",
         "owner": "blockfrost",
         "repo": "blockfrost-platform",
-        "rev": "19cdcd1a0cf92effa414195c19a46e47f3ff7d70",
+        "rev": "4634d0eab5fce40e5dc20e6e8095cbc761b2358c",
         "type": "github"
       },
       "original": {
         "owner": "blockfrost",
-        "ref": "pull/594/head",
         "repo": "blockfrost-platform",
         "type": "github"
       }
