@@ -65,16 +65,12 @@ type HealthStatus struct {
 type SharedState struct {
 	Network                string
 	NetworkStartTime       uint64   // UNIX timestamp [s]
-	SyncProgress           *float64 // XXX: we take that from Ogmios, we should probably calculate ourselves?
+	SyncProgress           *float64 // XXX: we should probably calculate this ourselves?
 	CardanoNodeConfigDir   string
 	CardanoNodeSocket      string
 	CardanoNodePort        *int
-	CardanoSubmitApiPort   *int
-	OgmiosPort             *int
 	BlockfrostPlatformPort *int
 	DolosPort              *int
-	PostgresPort           *int
-	PostgresPassword       *string
 	MithrilCachePort       int
 }
 
@@ -123,12 +119,8 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 				CardanoNodeConfigDir:   ourpaths.NetworkConfigDir + sep + network,
 				CardanoNodeSocket:      ourpaths.WorkDir + sep + network + sep + "node.sock",
 				CardanoNodePort:        new(int),
-				CardanoSubmitApiPort:   new(int),
-				OgmiosPort:             new(int),
 				BlockfrostPlatformPort: new(int),
 				DolosPort:              new(int),
-				PostgresPort:           new(int),
-				PostgresPassword:       new(string),
 				MithrilCachePort:       mithrilCachePort,
 			}
 
@@ -136,16 +128,8 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 				shared.CardanoNodeSocket = mkNewWindowsPipeName("cardano-node-" + network)
 			}
 
-			cardanoServicesAvailable := true
-			if _, err := os.Stat(ourpaths.CardanoServicesDir); os.IsNotExist(err) {
-				fmt.Printf("%s[%d]: warning: no cardano-services available, will run without them "+
-					"(No such file or directory: %s)\n", OurLogPrefix, os.Getpid(),
-					ourpaths.CardanoServicesDir)
-				cardanoServicesAvailable = false
-			}
-
-			ogmiosSyncProgressCh := make(chan float64)
-			defer close(ogmiosSyncProgressCh)
+			syncProgressCh := make(chan float64)
+			defer close(syncProgressCh)
 
 			usedChildren := []func(SharedState, chan<- StatusAndUrl) ManagedChild{}
 
@@ -159,16 +143,7 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 				if !dolosPRS.BootstrappingFromMithril {
 					usedChildren = append(usedChildren, childDolos())
 				}
-				usedChildren = append(usedChildren, childBlockfrostPlatform(ogmiosSyncProgressCh))
-				if !constants.BlockfrostPlatformOnly {
-					usedChildren = append(usedChildren, childOgmios(ogmiosSyncProgressCh))
-					usedChildren = append(usedChildren, childCardanoSubmitApi(appConfig))
-					usedChildren = append(usedChildren, childPostgres)
-					if cardanoServicesAvailable {
-						usedChildren = append(usedChildren, childProviderServer)
-						usedChildren = append(usedChildren, childProjector)
-					}
-				}
+				usedChildren = append(usedChildren, childBlockfrostPlatform(syncProgressCh))
 			} else {
 				usedChildren = append(usedChildren, childMithril(appConfig))
 				runMithril = false // one-time thing (restart to regular mode – successfully or by force)
@@ -217,7 +192,7 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 				childrenDefs = append(childrenDefs, def)
 			}
 
-			// We want to fake an update to cardano-node’s ServiceStatus as soon as Ogmios returns progress:
+			// We want to fake an update to cardano-node’s ServiceStatus as soon as we get sync progress:
 			go func() {
 				var cardanoNodeStatusCh chan<- StatusAndUrl
 				for _, child := range childrenDefs {
@@ -226,7 +201,7 @@ func manageChildren(comm CommChannels_Manager, appConfig appconfig.AppConfig, mi
 						break
 					}
 				}
-				for syncProgress := range ogmiosSyncProgressCh {
+				for syncProgress := range syncProgressCh {
 					*shared.SyncProgress = syncProgress
 					textual := "syncing"
 					if syncProgress == 1.0 {

@@ -214,8 +214,9 @@
         "type": "string",
         "enum": [
           "cardano-node",
-          "ogmios",
-          "provider-server",
+          "dolos",
+          "blockfrost-platform",
+          "mithril-client",
           "blockfrost-platform-desktop"
         ]
       },

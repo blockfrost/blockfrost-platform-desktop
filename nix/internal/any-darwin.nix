@@ -9,168 +9,7 @@ in rec {
   common = import ./common.nix {inherit inputs targetSystem;};
   package = blockfrost-platform-desktop;
   installer = unsigned-dmg;
-  inherit (common) cardano-node ogmios cardano-submit-api blockfrost-platform;
-
-  cardano-js-sdk = rec {
-    patchedSrc = pkgs.runCommand "cardano-js-sdk-patched" {} ''
-      cp -r ${inputs.cardano-js-sdk} $out
-      chmod -R +w $out
-      cd $out
-      patch -p1 -i ${./cardano-js-sdk--darwin.patch}
-    '';
-
-    theFlake =
-      (common.flake-compat {
-        src = patchedSrc;
-      }).defaultNix;
-
-    # In v18.16, after `install_name_tool`, we’re getting:
-    #   `Check failed: VerifyChecksum(blob)` in `v8::internal::Snapshot::VerifyChecksum`
-    # Let’s disable the default snapshot verification for now:
-    nodejs-no-snapshot = theFlake.inputs.nixpkgs.legacyPackages.${targetSystem}.nodejs.overrideAttrs (old: {
-      patches = (old.patches or []) ++ [./nodejs--no-verify-snapshot-checksum.patch];
-    });
-
-    pkgs11 = inputs.nixpkgs.legacyPackages.${targetSystem};
-
-    buildTimeSDK = pkgs11.darwin.apple_sdk_11_0;
-
-    # For resolving the node_modules:
-    theirPackage =
-      buildTimeSDK.callPackage "${patchedSrc}/yarn-project.nix" {
-        nodejs = nodejs-no-snapshot;
-      } {
-        src = patchedSrc;
-      };
-
-    ourPackageWithoutDeps = theirPackage.overrideAttrs (oldAttrs: {
-      # A bunch of deps build binaries using node-gyp that requires Python
-      PYTHON = "${pkgs.python3}/bin/python3";
-      NODE_OPTIONS = "--max_old_space_size=8192";
-      # playwright build fixes
-      PLAYWRIGHT_BROWSERS_PATH = builtins.toFile "fake-playwright" ""; # nixpkgs.playwright-driver.browsers;
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = 1;
-      CHROMEDRIVER_FILEPATH = builtins.toFile "fake-chromedriver" "";
-      # node-hid uses pkg-config to find sources
-      buildInputs =
-        oldAttrs.buildInputs
-        ++ [
-          buildTimeSDK.xcodebuild
-          buildTimeSDK.frameworks.AppKit
-          pkgs.perl
-          pkgs.pkg-config
-          pkgs11.darwin.cctools
-          buildTimeSDK.frameworks.CoreServices
-          buildTimeSDK.objc4
-          pkgs.jq
-          pkgs.rsync
-        ];
-
-      # We have to run the install scripts ourselves, because we cannot cross-build for 2 CPU architectures:
-      configurePhase = lib.replaceStrings ["yarn install"] ["YARN_ENABLE_SCRIPTS=false yarn install"] oldAttrs.configurePhase;
-
-      # Now run the install scripts:
-      postConfigure = let
-        changeFrom =
-          if lib.hasInfix "aarch64" targetSystem
-          then "x86_64"
-          else "arm64";
-        changeTo =
-          if lib.hasInfix "aarch64" targetSystem
-          then "arm64"
-          else "x86_64";
-      in ''
-        # Get rid of all the prebuilds (no binary blobs):
-        find node_modules -iname '*.node' | xargs -r -d'\n' rm -v || true
-
-        # Don’t try to download prebuilded packages (with prebuild-install):
-        export HOME=$(realpath $NIX_BUILD_TOP/home)
-        mkdir -p $HOME
-        ( echo 'buildFromSource=true' ; echo 'compile=true' ; ) >$HOME/.prebuild-installrc
-        export npm_config_build_from_source=true
-
-        # x86_64 cross-compilation won’t fly in this pure derivation:
-        find -type f '(' -name '*.gyp' -o -name '*.gypi' ')' \
-          | { xargs grep -F '${changeFrom}' || true ; } | cut -d: -f1 | sort --unique \
-          | while IFS= read -r file
-        do
-          sed -r 's/${changeFrom}/${changeTo}/g' -i "$file"
-        done
-
-        # Now we have to run the install scripts manually:
-        find -type f -name package.json | { xargs grep -RF '"install":' || true ; } | cut -d: -f1 \
-          | grep -vF 'node_modules/playwright/' \
-          | grep -vF 'node_modules/napi-macros/example/' \
-          | while IFS= read -r package
-        do
-          if [ "$(jq .scripts.install "$package")" = "null" ] ; then
-            continue
-          fi
-          echo ' '
-          echo "Running ‘install’ for ‘$package’…"
-          (
-            cd "$(dirname "$package")"
-            yarn run install
-          )
-        done
-      '';
-
-      # run actual build
-      buildPhase = ''
-        yarn workspace @cardano-sdk/cardano-services run build
-      '';
-      # override installPhase to only install what's necessary
-      installPhase = ''
-        mkdir $out
-        rsync -Rah $(find . '(' '(' -type d -name 'dist' ')' -o -name 'package.json' ')' \
-          -not -path '*/node_modules/*') $out/
-      '';
-    });
-
-    production-deps = ourPackageWithoutDeps.overrideAttrs (oldAttrs: {
-      name = "cardano-sdk-production-deps";
-      configurePhase =
-        builtins.replaceStrings
-        ["yarn install --immutable --immutable-cache"]
-        ["yarn workspaces focus --all --production"]
-        oldAttrs.configurePhase;
-      buildPhase = "";
-      installPhase = let
-        ourArch =
-          if lib.hasInfix "aarch64" targetSystem
-          then "arm64"
-          else "x86_64";
-      in ''
-        mkdir -p $out
-        echo 'Getting rid of alien architectures…'
-        find node_modules -iname '*.node' | xargs -d'\n' file | grep -Evi 'Mach-O.*(${ourArch}|universal)' \
-          | cut -d: -f1 | xargs -r -d'\n' rm -v || true
-        cp -r node_modules $out/
-      '';
-    });
-
-    ourPackage =
-      pkgs.runCommandNoCC "cardano-js-sdk" {
-        passthru = {
-          inherit (theirPackage) nodejs;
-        };
-      } ''
-        mkdir -p $out
-        cp -r ${ourPackageWithoutDeps}/. ${production-deps}/. $out/
-        chmod -R +w $out
-
-        # Drop the cjs/ prefix, it’s problematic on Darwin:
-        find $out/packages -mindepth 3 -maxdepth 3 -type d -path '*/dist/cjs' | while IFS= read -r cjs ; do
-          mv "$cjs" "$cjs.old-unused"
-          mv "$cjs.old-unused"/{.*,*} "$(dirname "$cjs")/"
-          rmdir "$cjs.old-unused"
-        done
-        find $out/packages -mindepth 2 -maxdepth 2 -type f -name 'package.json' | while IFS= read -r packageJson ; do
-          sed -r 's,dist/cjs,dist,g' -i "$packageJson"
-          sed -r 's,dist/esm,dist,g' -i "$packageJson"
-        done
-      '';
-  };
+  inherit (common) cardano-node blockfrost-platform;
 
   goBuildInputs = with pkgs.darwin.apple_sdk_11_0.frameworks; [Cocoa WebKit UniformTypeIdentifiers];
 
@@ -263,12 +102,9 @@ in rec {
 
   icons = svg2icns ./macos-app-icon.svg;
 
-  cardano-node-bundle = mkBundle ({
-      "cardano-node" = lib.getExe cardano-node;
-    }
-    // lib.optionalAttrs (!common.blockfrostPlatformOnly) {
-      "cardano-submit-api" = lib.getExe cardano-submit-api;
-    });
+  cardano-node-bundle = mkBundle {
+    "cardano-node" = lib.getExe cardano-node;
+  };
 
   blockfrost-platform-desktop =
     pkgs.runCommand common.codeName {
@@ -290,86 +126,12 @@ in rec {
       ln -s ${mkBundle {"dolos" = lib.getExe common.dolos;}} "$app"/MacOS/dolos
       ln -s ${mkBundle {"mithril-client" = lib.getExe mithril-client;}} "$app"/MacOS/mithril-client
 
-      ${lib.optionalString (!common.blockfrostPlatformOnly) ''
-        ln -s ${mkBundle {"ogmios" = lib.getExe ogmios;}} "$app"/MacOS/ogmios
-        ln -s ${mkBundle {"node" = lib.getExe cardano-js-sdk.ourPackage.nodejs;}} "$app"/MacOS/nodejs
-        ln -s ${postgresBundle} "$app"/MacOS/postgres
-        ln -s ${cardano-js-sdk.ourPackage} "$app"/Resources/cardano-js-sdk
-      ''}
-
       ln -s ${common.cardano-node-configs} "$app"/Resources/cardano-node-config
       ln -s ${common.dolos-configs} "$app"/Resources/dolos-config
       ln -s ${common.swagger-ui} "$app"/Resources/swagger-ui
       ln -s ${ui.dist} "$app"/Resources/ui
 
       ln -s ${icons} "$app"/Resources/iconset.icns
-    '';
-
-  postgresPackage = common.postgresPackage.overrideAttrs (drv: {
-    # `--with-system-tzdata=` is non-relocatable, cf. <https://github.com/postgres/postgres/blob/REL_15_2/src/timezone/pgtz.c#L39-L43>
-    configureFlags = lib.filter (flg: !(lib.hasPrefix "--with-system-tzdata=" flg)) drv.configureFlags;
-  });
-
-  # Slightly more complicated, we have to bundle ‘postgresPackage.lib’, and also make smart
-  # use of ‘make_relative_path’ defined in <https://github.com/postgres/postgres/blob/REL_15_2/src/port/path.c#L635C1-L662C1>:
-  postgresBundle = let
-    pkglibdir = let
-      unbundled = postgresPackage.lib;
-      bin_dir = "bin";
-      exe_dir = "exe";
-      lib_dir = ".";
-    in
-      (import nix-bundle-exe-same-dir {
-          inherit pkgs;
-          inherit bin_dir exe_dir lib_dir;
-        }
-        unbundled).overrideAttrs (_drv: {
-        inherit bin_dir exe_dir lib_dir;
-        buildCommand = ''
-          mkdir -p $out/${lib_dir}
-          eval "$(sed -r '/^(out|binary)=/d ; /^bundleBin "/d' \
-                    <${nix-bundle-exe-same-dir + "/bundle-macos.sh)"}"
-          find -L ${unbundled} -type f -name '*.so' | while IFS= read -r lib ; do
-            bundleBin "$lib" "lib"
-          done
-          rmdir $out/bin
-        '';
-      });
-    binBundle =
-      (mkBundle {
-        "postgres" = "${postgresPackage}/bin/postgres";
-        "initdb" = "${postgresPackage}/bin/initdb";
-        "psql" = "${postgresPackage}/bin/psql";
-        "pg_dump" = "${postgresPackage}/bin/pg_dump";
-      }).overrideAttrs (drv: {
-        buildCommand =
-          drv.buildCommand
-          + ''
-            chmod -R +w $out
-            find $out -mindepth 1 -maxdepth 1 -type f -executable | xargs file | grep -E ':.*executable' | cut -d: -f1 | while IFS= read -r exe ; do
-              echo "Wrapping $exe…"
-              wrapped=".$(basename "$exe")-wrapped"
-              mv -v "$exe" "$(dirname "$exe")"/"$wrapped"
-              (
-                echo '#!/bin/sh'
-                echo 'set -eu'
-                echo 'dir=$(cd "$(dirname "$0")"; pwd -P)'
-                echo 'export NIX_PGLIBDIR="$dir/../pkglibdir"'
-                echo 'exec "$dir/'"$wrapped"'" "$@"'
-              ) >"$exe"
-              chmod +x "$exe"
-            done
-          '';
-      });
-  in
-    pkgs.runCommand "postgresBundle" {
-      passthru = {inherit pkglibdir binBundle;};
-    } ''
-      mkdir -p $out/bin
-      cp -r ${binBundle}/. $out/bin/
-
-      ln -sfn ${pkglibdir} $out/pkglibdir
-      ln -sfn ${postgresPackage}/share $out/share
     '';
 
   nix-bundle-exe-same-dir = pkgs.runCommand "nix-bundle-exe-same-dir" {} ''

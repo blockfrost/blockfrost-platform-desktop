@@ -15,7 +15,6 @@ const (
 
 type AppConfig struct {
 	ApiPort              int              `json:"apiPort"`
-	CardanoSubmitApiPort int              `json:"cardanoSubmitApiPort"`
 	LastNetwork          string           `json:"lastNetwork"`
 	ForceMithrilSnapshot MithrilOverrides `json:"forceMithrilSnapshot"`
 }
@@ -35,9 +34,8 @@ func Load() AppConfig {
 	configFile := ourpaths.WorkDir + string(filepath.Separator) + "app-config.json"
 
 	defaults := AppConfig{
-		ApiPort:              52910,
-		CardanoSubmitApiPort: 52911,
-		LastNetwork:          "mainnet",
+		ApiPort:     52910,
+		LastNetwork: "mainnet",
 		ForceMithrilSnapshot: MithrilOverrides{
 			Preview: MithrilOverride{Digest: "", LocalPath: ""},
 			Preprod: MithrilOverride{Digest: "", LocalPath: ""},

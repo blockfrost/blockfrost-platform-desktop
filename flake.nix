@@ -19,19 +19,8 @@
     };
     crane.follows = "blockfrost-platform/crane";
     cardano-playground.follows = "blockfrost-platform/cardano-playground";
-    cardano-js-sdk = {
-      url = "github:input-output-hk/cardano-js-sdk/@cardano-sdk/cardano-services@0.35.10";
-      flake = false; # we patch it & to prevent lockfile explosion
-    };
     # FIXME: update to `main` when this is merged:
     blockfrost-platform.url = "github:blockfrost/blockfrost-platform";
-    ogmios = {
-      url = "https://github.com/CardanoSolutions/ogmios.git";
-      ref = "refs/tags/v6.11.2";
-      type = "git";
-      submodules = true;
-      flake = false;
-    };
     mithril.follows = "blockfrost-platform/mithril";
     nix-bundle-exe.follows = "blockfrost-platform/nix-bundle-exe";
     # FIXME: follow blockfrost-platform
