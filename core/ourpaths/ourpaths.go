@@ -12,14 +12,13 @@ const (
 )
 
 var (
-	ExecutablePath     string
-	Username           string
-	WorkDir            string
-	LibexecDir         string
-	ResourcesDir       string
-	NetworkConfigDir   string
-	CardanoServicesDir string
-	ExeSuffix          string
+	ExecutablePath   string
+	Username         string
+	WorkDir          string
+	LibexecDir       string
+	ResourcesDir     string
+	NetworkConfigDir string
+	ExeSuffix        string
 )
 
 func init() {
@@ -63,8 +62,6 @@ func init() {
 	sep := string(filepath.Separator)
 
 	NetworkConfigDir = ResourcesDir + sep + "cardano-node-config"
-
-	CardanoServicesDir = ResourcesDir + sep + "cardano-js-sdk" + sep + "packages" + sep + "cardano-services"
 
 	ExeSuffix = ""
 	if runtime.GOOS == "windows" {

@@ -102,17 +102,10 @@ func SetupTray(
 		// FIXME: this has to be done smarter
 		chMithrilStatus := make(chan t.ServiceStatus)
 		fixme_CardanoNodeStatus := make(chan string)
-		fixme_CardanoSubmitApiStatus := make(chan string)
-		fixme_OgmiosStatus := make(chan string)
 		fixme_BlockfrostPlatformStatus := make(chan string)
 		fixme_DolosStatus := make(chan string)
-		fixme_PostgresStatus := make(chan string)
-		fixme_SetOgmiosDashboard := make(chan string)
 		// fixme_SetBlockfrostPlatformUrl := make(chan string)
 		// fixme_SetDolosUrl := make(chan string)
-		fixme_SetCardanoSubmitApiUrl := make(chan string)
-		fixme_ProviderServerStatus := make(chan string)
-		fixme_ProjectorStatus := make(chan string)
 
 		go func() {
 			for upd := range comm.ServiceUpdate {
@@ -125,31 +118,17 @@ func SetupTray(
 				switch upd.ServiceName {
 				case "cardano-node":
 					fixme_CardanoNodeStatus <- formatted
-				case "cardano-submit-api":
-					fixme_CardanoSubmitApiStatus <- formatted
-					fixme_SetCardanoSubmitApiUrl <- upd.Url
-				case "ogmios":
-					fixme_OgmiosStatus <- formatted
-					fixme_SetOgmiosDashboard <- upd.Url
 				case "blockfrost-platform":
 					fixme_BlockfrostPlatformStatus <- formatted
 					// fixme_SetBlockfrostPlatformUrl <- upd.Url
 				case "dolos":
 					fixme_DolosStatus <- formatted
 					// fixme_SetDolosUrl <- upd.Url  // if you uncomment, read it! otherways UI will hang
-				case "postgres":
-					fixme_PostgresStatus <- formatted
-				case "provider-server":
-					fixme_ProviderServerStatus <- formatted
-				case "projector":
-					fixme_ProjectorStatus <- formatted
 				case "mithril-client":
 					chMithrilStatus <- upd
 				}
 			}
 		}()
-
-		// systray.AddMenuItemCheckbox("Run Full Backend (projector)", "", false)
 
 		mCopyUrl := systray.AddMenuItem("Copy Backend URL", "")
 		go func() {
@@ -162,29 +141,6 @@ func SetupTray(
 				}
 			}
 		}()
-
-		/*
-			mCopyCardanoSubmitApiUrl := systray.AddMenuItem("Copy Cardano Submit API URL", "")
-			mCopyCardanoSubmitApiUrl.Hide()
-			go func() {
-				url := ""
-				mCopyCardanoSubmitApiUrl.Disable()
-				for { select {
-				case <-mCopyCardanoSubmitApiUrl.ClickedCh:
-					err := clipboard.WriteAll(url)
-					if err != nil {
-						fmt.Printf("%s[%d]: error: failed to copy '%s' to clipboard: %s\n",
-							OurLogPrefix, os.Getpid(), url, err)
-					}
-				case url = <-fixme_SetCardanoSubmitApiUrl:
-					if url == "" {
-						mCopyCardanoSubmitApiUrl.Disable()
-					} else {
-						mCopyCardanoSubmitApiUrl.Enable()
-					}
-				}}
-			}()
-		*/
 
 		/*
 			mCopyBlockfrostPlatformUrl := systray.AddMenuItem("Copy Blockfrost platform URL", "")
@@ -215,11 +171,6 @@ func SetupTray(
 			{"blockfrost-platform": fixme_BlockfrostPlatformStatus},
 			{"cardano-node": fixme_CardanoNodeStatus},
 			{"dolos": fixme_DolosStatus},
-			// { "ogmios":             fixme_OgmiosStatus },
-			// { "cardano-submit-api": fixme_CardanoSubmitApiStatus },
-			// { "postgres":           fixme_PostgresStatus },
-			// { "provider-server":    fixme_ProviderServerStatus },
-			// { "projector":          fixme_ProjectorStatus },
 		}
 
 		for _, statusItem := range statuses {
@@ -325,25 +276,6 @@ func SetupTray(
 				// openWithDefaultApp(url)
 			}
 		}()
-
-		/*
-			mOgmiosDashboard := systray.AddMenuItem("Ogmios Dashboard", "")
-			go func() {
-				url := ""
-				mOgmiosDashboard.Disable()
-				for { select {
-				case <-mOgmiosDashboard.ClickedCh:
-					showWebUI(url)
-					//openWithDefaultApp(url)
-				case url = <-fixme_SetOgmiosDashboard:
-					if url == "" {
-						mOgmiosDashboard.Disable()
-					} else {
-						mOgmiosDashboard.Enable()
-					}
-				}}
-			}()
-		*/
 
 		systray.AddSeparator()
 

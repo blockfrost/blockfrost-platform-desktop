@@ -12,21 +12,7 @@ in rec {
 
   installer = selfExtractingArchive;
 
-  inherit (common) cardano-node ogmios cardano-submit-api blockfrost-platform;
-
-  cardano-js-sdk =
-    (common.flake-compat {
-      src = inputs.cardano-js-sdk;
-    }).defaultNix.${
-      pkgs.system
-    }.cardano-services.packages.cardano-services;
-
-  # In v18.16, after `patchelf`, we’re getting:
-  #   `Check failed: VerifyChecksum(blob)` in `v8::internal::Snapshot::VerifyChecksum`
-  # Let’s disable the default snapshot verification for now:
-  nodejs-no-snapshot = cardano-js-sdk.nodejs.overrideAttrs (old: {
-    patches = (old.patches or []) ++ [./nodejs--no-verify-snapshot-checksum.patch];
-  });
+  inherit (common) cardano-node blockfrost-platform;
 
   webkit2gtk = let
     oldPkgs = import inputs.nixpkgs-webkitgtk {system = targetSystem;};
@@ -128,95 +114,6 @@ in rec {
         '';
     });
 
-  postgresPackage = common.postgresPackage.overrideAttrs (drv: {
-    # `--with-system-tzdata=` is non-relocatable, cf. <https://github.com/postgres/postgres/blob/REL_15_2/src/timezone/pgtz.c#L39-L43>
-    configureFlags = lib.filter (flg: !(lib.hasPrefix "--with-system-tzdata=" flg)) drv.configureFlags;
-  });
-
-  # Slightly more complicated, we have to bundle ‘postgresPackage.lib’, and also make smart
-  # use of ‘make_relative_path’ defined in <https://github.com/postgres/postgres/blob/REL_15_2/src/port/path.c#L635C1-L662C1>:
-  postgresBundle = let
-    pkglibdir = let
-      unbundled = postgresPackage.lib;
-      bin_dir = "bin";
-      exe_dir = "exe";
-      lib_dir = ".";
-    in
-      (nix-bundle-exe {
-          inherit pkgs;
-          inherit bin_dir exe_dir lib_dir;
-        }
-        unbundled).overrideAttrs (_drv: {
-        inherit bin_dir exe_dir lib_dir;
-        buildCommand = ''
-          mkdir -p $out/${lib_dir}
-          eval "$(sed -r '/^(out|binary)=/d ; /^exe_interpreter=/,$d' \
-                    <${inputs.nix-bundle-exe + "/bundle-linux.sh)"}"
-          find -L ${unbundled} -type f -name '*.so' | while IFS= read -r elf ; do
-            bundleLib "$elf"
-          done
-        '';
-      });
-    binBundle =
-      (mkBundle {
-        "postgres" = "${postgresPackage}/bin/postgres";
-        "initdb" = "${postgresPackage}/bin/.initdb-wrapped";
-        "psql" = "${postgresPackage}/bin/psql";
-        "pg_dump" = "${postgresPackage}/bin/pg_dump";
-      }).overrideAttrs (drv: {
-        buildCommand =
-          drv.buildCommand
-          + ''
-            find $out -mindepth 1 -maxdepth 1 -type f -executable | xargs file | grep 'shell script' | cut -d: -f1 | while IFS= read -r wrapper ; do
-              sed -r '/^exec/i export NIX_PGLIBDIR="$dir/../pkglibdir"' -i "$wrapper"
-            done
-          '';
-      });
-  in
-    pkgs.runCommand "postgresBundle" {
-      passthru = {inherit pkglibdir binBundle;};
-    } ''
-      mkdir -p $out/bin
-      cp -r ${binBundle}/. $out/bin/
-
-      ln -sfn ${pkglibdir} $out/pkglibdir
-      ln -sfn ${postgresPackage}/share $out/share
-    '';
-
-  testPostgres = pkgs.writeShellScriptBin "test-postgres" ''
-      set -euo pipefail
-
-      export PGDATA=$HOME/.local/share/blockfrost-platform-desktop/test-postgres
-      if [ -e "$PGDATA" ] ; then rm -r "$PGDATA" ; fi
-      mkdir -p "$PGDATA"
-
-      ${postgresBundle}/bin/initdb --username postgres --pwfile ${pkgs.writeText "pwfile" "dupa.888"}
-
-      mv "$PGDATA"/postgresql.conf "$PGDATA"/postgresql.conf.original
-      cat >"$PGDATA/postgresql.conf" <<EOF
-    listen_addresses = 'localhost'
-    port = 5432
-    unix_socket_directories = '$HOME/.local/share/blockfrost-platform-desktop/test-postgres'
-    max_connections = 100
-    fsync = on
-    logging_collector = off
-    log_destination = 'stderr'
-    log_statement = 'all'
-    datestyle = 'iso'
-    timezone = 'utc'
-    #autovacuum = on
-    EOF
-
-      mv "$PGDATA"/pg_hba.conf "$PGDATA"/pg_hba.conf.original
-      cat >"$PGDATA/pg_hba.conf" <<EOF
-    # TYPE  DATABASE        USER            ADDRESS                 METHOD
-    host    all             all             127.0.0.1/32            scram-sha-256
-    host    all             all             ::1/128                 scram-sha-256
-    EOF
-
-      exec ${postgresBundle}/bin/postgres
-  '';
-
   # $dir is $out/libexec/blockfrost-platform-desktop/
   # TODO: move WEBKIT_EXEC_PATH here, but then `nix run -L` doesn’t work: Couldn't open libGLESv2.so.2: /nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-libGL-1.7.0/lib/libGLESv2.so.2: cannot open shared object file: No such file or directory
   extraBSInit = ''
@@ -246,24 +143,13 @@ in rec {
       ln -s $out/libexec/blockfrost-platform-desktop/* $out/bin/
 
       mkdir -p $out/{libexec,share}
-      ln -s ${mkBundle ({
-          "cardano-node" = lib.getExe cardano-node;
-        }
-        // lib.optionalAttrs (!common.blockfrostPlatformOnly) {
-          "cardano-submit-api" = lib.getExe cardano-submit-api;
-        })} $out/libexec/cardano-node
+      ln -s ${mkBundle {
+        "cardano-node" = lib.getExe cardano-node;
+      }} $out/libexec/cardano-node
       ln -s ${blockfrost-platform} $out/libexec/blockfrost-platform
       ln -s ${mkBundle {"dolos" = lib.getExe common.dolos;}} $out/libexec/dolos
       ln -s ${mkBundle {"mithril-client" = lib.getExe mithril-client;}} $out/libexec/mithril-client
       ln -s ${mkBundle {"clip" = lib.getExe pkgs.xclip;}} $out/libexec/xclip
-
-      ${lib.optionalString (!common.blockfrostPlatformOnly) ''
-        ln -s ${mkBundle {"ogmios" = lib.getExe ogmios;}} $out/libexec/ogmios
-        ln -s ${mkBundle {"node" = lib.getExe nodejs-no-snapshot;}} $out/libexec/nodejs
-        ln -s ${postgresBundle} $out/libexec/postgres
-
-        ln -s ${cardano-js-sdk}/libexec/incl $out/share/cardano-js-sdk
-      ''}
 
       ln -s ${pkgs.xkeyboard_config}/share/X11/xkb $out/share/xkb
       ln -s ${common.cardano-node-configs} $out/share/cardano-node-config

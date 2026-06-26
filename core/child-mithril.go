@@ -1,14 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -474,50 +471,4 @@ func fetchCardanoDbSizes(aggregatorEndpoint string) (total float64, ancillary fl
 	}
 
 	return detail.TotalDbSizeUncompressed, detail.Ancillary.SizeUncompressed, true
-}
-
-func runCommandWithTimeout(
-	command string,
-	args []string,
-	extraEnv []string,
-	timeout time.Duration,
-	stdin *string, // use nil to not set
-) ([]byte, []byte, int, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, command, args...)
-
-	setManagedChildSysProcAttr(cmd)
-
-	// Against possible orphaned child processes during timeout, but so far Mithril doesn’t have them:
-	cmd.WaitDelay = 1 * time.Second
-
-	if len(extraEnv) > 0 {
-		cmd.Env = append(os.Environ(), extraEnv...)
-	}
-
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
-	if stdin != nil {
-		cmd.Stdin = strings.NewReader(*stdin)
-	}
-
-	err := cmd.Run()
-	var rerr error
-
-	if ctx.Err() == context.DeadlineExceeded {
-		rerr = fmt.Errorf("timed out")
-	} else if err != nil {
-		rerr = fmt.Errorf("failed: %s", err)
-	}
-
-	pid := -1
-	if cmd.Process != nil {
-		pid = cmd.Process.Pid
-	}
-
-	return stdoutBuf.Bytes(), stderrBuf.Bytes(), pid, rerr
 }

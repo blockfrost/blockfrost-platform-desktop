@@ -65,23 +65,6 @@
         "type": "github"
       }
     },
-    "cardano-js-sdk": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1741029698,
-        "narHash": "sha256-9MC6KUiZLIlj+fi1H15mjh8H/YyEwln1b+vuTXLr6JM=",
-        "owner": "input-output-hk",
-        "repo": "cardano-js-sdk",
-        "rev": "b01e2b83394a70201c881a1c2f8573077eddbdb5",
-        "type": "github"
-      },
-      "original": {
-        "owner": "input-output-hk",
-        "ref": "@cardano-sdk/cardano-services@0.35.10",
-        "repo": "cardano-js-sdk",
-        "type": "github"
-      }
-    },
     "cardano-node": {
       "flake": false,
       "locked": {
@@ -442,29 +425,9 @@
         "type": "github"
       }
     },
-    "ogmios": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1738673186,
-        "narHash": "sha256-M5Bx7g86SmruI5mBH9QsmfQDk4q/dUaDTluIKtlGAq0=",
-        "ref": "refs/tags/v6.11.2",
-        "rev": "b80318c5a5c7e48325cc104c35a27ae46d5e7341",
-        "revCount": 1687,
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/CardanoSolutions/ogmios.git"
-      },
-      "original": {
-        "ref": "refs/tags/v6.11.2",
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/CardanoSolutions/ogmios.git"
-      }
-    },
     "root": {
       "inputs": {
         "blockfrost-platform": "blockfrost-platform",
-        "cardano-js-sdk": "cardano-js-sdk",
         "cardano-node": "cardano-node_2",
         "cardano-playground": [
           "blockfrost-platform",
@@ -493,7 +456,6 @@
         ],
         "nixpkgs": "nixpkgs_3",
         "nixpkgs-webkitgtk": "nixpkgs-webkitgtk",
-        "ogmios": "ogmios",
         "treefmt-nix": "treefmt-nix_3"
       }
     },

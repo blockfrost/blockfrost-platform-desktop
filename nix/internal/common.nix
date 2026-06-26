@@ -16,8 +16,6 @@ in rec {
 
   ourVersion = "1.0.0-rc.2";
 
-  blockfrostPlatformOnly = true;
-
   cardano-node-configs-verbose = builtins.path {
     name = "cardano-playground-configs";
     path = inputs.cardano-playground + "/static/book.play.dev.cardano.org/environments";
@@ -46,64 +44,6 @@ in rec {
 
   blockfrostPlatformFlake = (flake-compat {src = inputs.blockfrost-platform;}).defaultNix;
 
-  ogmiosPatched = {
-    outPath = toString (pkgs.runCommand "ogmios-patched" {} ''
-      cp -r ${inputs.ogmios} $out
-      chmod -R +w $out
-      find $out -name cabal.project.freeze -delete -o -name package.yaml -delete
-      grep -RF -- -external-libsodium-vrf $out | cut -d: -f1 | sort --uniq | xargs -n1 -- sed -r s/-external-libsodium-vrf//g -i
-      cd $out
-      patch -p1 -i ${./ogmios-6-5-0--missing-srp-hash.patch}
-      patch -p1 -i ${./ogmios--on-windows.patch}
-      patch -p1 -i ${./ogmios-6-9-0--fix-cabal-doctest.patch}
-    '');
-    inherit (inputs.ogmios.sourceInfo) rev shortRev lastModified lastModifiedDate;
-  };
-
-  inherit (cardanoNodeFlake.project.${buildSystem}.pkgs) haskell-nix;
-
-  ogmiosProject = haskell-nix.project {
-    compiler-nix-name = "ghc96";
-    projectFileName = "cabal.project";
-    inputMap = {"https://input-output-hk.github.io/cardano-haskell-packages" = cardanoNodeFlake.inputs.CHaP;};
-    src = ogmiosPatched + "/server";
-    modules = [
-      ({
-        lib,
-        pkgs,
-        ...
-      }: {
-        packages = {
-          cardano-crypto-praos.components.library.pkgconfig = lib.mkForce [[pkgs.libsodium-vrf]];
-          cardano-crypto-class.components.library.pkgconfig = lib.mkForce [
-            ([pkgs.libsodium-vrf pkgs.secp256k1]
-              ++ (
-                if pkgs ? libblst
-                then [pkgs.libblst]
-                else []
-              ))
-          ];
-          ogmios.components.library.preConfigure = "export GIT_SHA=${inputs.ogmios.rev}";
-        };
-      })
-      ({lib, ...}: {
-        packages = {
-          entropy.package.buildType = lib.mkForce "Simple";
-          ouroboros-network-framework.doHaddock = false;
-        };
-      })
-    ];
-  };
-
-  ogmios =
-    {
-      x86_64-linux = ogmiosProject.projectCross.musl64.hsPkgs.ogmios.components.exes.ogmios;
-      x86_64-windows = ogmiosProject.projectCross.mingwW64.hsPkgs.ogmios.components.exes.ogmios;
-      aarch64-darwin = ogmiosProject.hsPkgs.ogmios.components.exes.ogmios;
-    }.${
-      targetSystem
-    };
-
   blockfrost-platform =
     blockfrostPlatformFlake.internal.${targetSystem}.bundle
     // {
@@ -119,31 +59,6 @@ in rec {
       targetSystem
     };
 
-  cardano-submit-api =
-    {
-      x86_64-linux = cardanoNodeFlake.hydraJobs.x86_64-linux.musl.cardano-submit-api;
-      x86_64-windows = cardanoNodeFlake.hydraJobs.x86_64-linux.windows.cardano-submit-api;
-      aarch64-darwin = cardanoNodeFlake.packages.aarch64-darwin.cardano-submit-api;
-    }.${
-      targetSystem
-    };
-
-  postgresPackage =
-    {
-      x86_64-linux = pkgs.postgresql_15_jit;
-      aarch64-darwin = pkgs.postgresql_15_jit;
-      x86_64-windows = let
-        version = "15.4-1";
-      in
-        (pkgs.fetchurl {
-          url = "https://get.enterprisedb.com/postgresql/postgresql-${version}-windows-x64.exe";
-          hash = "sha256-Su4VKwJkeQ6HqCXTIZIK2c4AJHloqm72BZLs2JCnmN8=";
-        })
-        // {inherit version;};
-    }.${
-      targetSystem
-    };
-
   blockfrost-platform-desktop-exe-vendorHash = "sha256-3mz58RaOQvbZbTMCDwXTmIWUqMqpPlzy8222kvm9SOU=";
 
   go-constants = pkgs.writeTextDir "constants/constants.go" ''
@@ -154,29 +69,10 @@ in rec {
       BlockfrostPlatformDesktopRevision = ${builtins.toJSON (inputs.self.rev or "dirty")}
       CardanoNodeVersion = ${builtins.toJSON cardanoNodeFlake.project.${buildSystem}.hsPkgs.cardano-node.identifier.version}
       CardanoNodeRevision = ${builtins.toJSON inputs.cardano-node.rev}
-      BlockfrostPlatformOnly = ${builtins.toJSON blockfrostPlatformOnly}
       BlockfrostPlatformVersion = ${builtins.toJSON blockfrost-platform.version}
       BlockfrostPlatformRevision = ${builtins.toJSON inputs.blockfrost-platform.rev}
-      OgmiosVersion = ${builtins.toJSON ogmios.version}
-      OgmiosRevision = ${builtins.toJSON inputs.ogmios.rev}
       DolosVersion = ${builtins.toJSON dolos.version}
       DolosRevision = ${builtins.toJSON blockfrostPlatformFlake.inputs.dolos.rev}
-      PostgresVersion = ${builtins.toJSON postgresPackage.version}
-      PostgresRevision = ${builtins.toJSON postgresPackage.version}
-      CardanoJsSdkVersion = ${builtins.toJSON (builtins.fromJSON (builtins.readFile (inputs.cardano-js-sdk + "/packages/cardano-services/package.json"))).version}
-      CardanoJsSdkRevision = ${builtins.toJSON inputs.cardano-js-sdk.rev}
-      CardanoJsSdkBuildInfo = ${builtins.toJSON (let
-      self = inputs.cardano-js-sdk;
-    in
-      builtins.toJSON {
-        inherit (self) lastModified lastModifiedDate rev;
-        shortRev = self.shortRev or "no rev";
-        extra = {
-          inherit (self) narHash;
-          sourceInfo = self;
-          path = self.outPath;
-        };
-      })}
       MithrilClientRevision = ${builtins.toJSON inputs.mithril.sourceInfo.rev or "dirty"}
       MithrilClientVersion = ${builtins.toJSON mithril-bin.version}
       MithrilGVKPreview = ${builtins.toJSON mithrilGenesisVerificationKeys.preview}
