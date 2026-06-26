@@ -20,28 +20,11 @@ func getFreeTCPPort() int {
 	return address.Port
 }
 
-func probeTcpPort(host string, port int, timeout time.Duration) error {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), timeout)
-	if err == nil {
-		defer conn.Close()
-	}
-	return err
-}
-
 func probeUnixSocket(path string, timeout time.Duration) error {
 	conn, err := net.DialTimeout("unix", path, timeout)
 	if err == nil {
 		defer conn.Close()
 	}
-	return err
-}
-
-func probeHttp200(url string, timeout time.Duration) error {
-	return probeHttpFor([]int{http.StatusOK}, url, timeout)
-}
-
-func probeHttpFor(acceptedStatusCodes []int, url string, timeout time.Duration) error {
-	_, err := probeHttpWithBodyFor(acceptedStatusCodes, url, timeout, false)
 	return err
 }
 
